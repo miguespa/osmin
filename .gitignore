@@ -1,4 +1,14 @@
+# Secrets
 .env
 .env.*
 *.env
+
+# Node
+node_modules/
+dist/
+.next/
+out/
+
+# OS
 .DS_Store
+Thumbs.db
