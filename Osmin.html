@@ -135,11 +135,3023 @@
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-<script type="text/babel" src="tweaks-panel.jsx"></script>
-<script type="text/babel" src="data.jsx"></script>
-<script type="text/babel" src="table-layout.jsx"></script>
-<script type="text/babel" src="journal-layout.jsx"></script>
-<script type="text/babel" src="overview.jsx"></script>
-<script type="text/babel" src="app.jsx"></script>
+<script type="text/babel">
+
+// tweaks-panel.jsx
+// Reusable Tweaks shell + form-control helpers.
+//
+// Owns the host protocol (listens for __activate_edit_mode / __deactivate_edit_mode,
+// posts __edit_mode_available / __edit_mode_set_keys / __edit_mode_dismissed) so
+// individual prototypes don't re-roll it. Ships a consistent set of controls so you
+// don't hand-draw <input type="range">, segmented radios, steppers, etc.
+//
+// Usage (in an HTML file that loads React + Babel):
+//
+//   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+//     "primaryColor": "#D97757",
+//     "palette": ["#D97757", "#29261b", "#f6f4ef"],
+//     "fontSize": 16,
+//     "density": "regular",
+//     "dark": false
+//   }/*EDITMODE-END*/;
+//
+//   function App() {
+//     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+//     return (
+//       <div style={{ fontSize: t.fontSize, color: t.primaryColor }}>
+//         Hello
+//         <TweaksPanel>
+//           <TweakSection label="Typography" />
+//           <TweakSlider label="Font size" value={t.fontSize} min={10} max={32} unit="px"
+//                        onChange={(v) => setTweak('fontSize', v)} />
+//           <TweakRadio  label="Density" value={t.density}
+//                        options={['compact', 'regular', 'comfy']}
+//                        onChange={(v) => setTweak('density', v)} />
+//           <TweakSection label="Theme" />
+//           <TweakColor  label="Primary" value={t.primaryColor}
+//                        options={['#D97757', '#2A6FDB', '#1F8A5B', '#7A5AE0']}
+//                        onChange={(v) => setTweak('primaryColor', v)} />
+//           <TweakColor  label="Palette" value={t.palette}
+//                        options={[['#D97757', '#29261b', '#f6f4ef'],
+//                                  ['#475569', '#0f172a', '#f1f5f9']]}
+//                        onChange={(v) => setTweak('palette', v)} />
+//           <TweakToggle label="Dark mode" value={t.dark}
+//                        onChange={(v) => setTweak('dark', v)} />
+//         </TweaksPanel>
+//       </div>
+//     );
+//   }
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    transform:scale(var(--dc-inv-zoom,1));transform-origin:bottom right;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+
+  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;
+    overflow-wrap:anywhere}
+
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+
+  .twk-num{display:flex;align-items:center;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+
+  .twk-chips{display:flex;gap:6px}
+  .twk-chip{position:relative;appearance:none;flex:1;min-width:0;height:46px;
+    padding:0;border:0;border-radius:6px;overflow:hidden;cursor:default;
+    box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06);
+    transition:transform .12s cubic-bezier(.3,.7,.4,1),box-shadow .12s}
+  .twk-chip:hover{transform:translateY(-1px);
+    box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 4px 10px rgba(0,0,0,.12)}
+  .twk-chip[data-on="1"]{box-shadow:0 0 0 1.5px rgba(0,0,0,.85),
+    0 2px 6px rgba(0,0,0,.15)}
+  .twk-chip>span{position:absolute;top:0;bottom:0;right:0;width:34%;
+    display:flex;flex-direction:column;box-shadow:-1px 0 0 rgba(0,0,0,.1)}
+  .twk-chip>span>i{flex:1;box-shadow:0 -1px 0 rgba(0,0,0,.1)}
+  .twk-chip>span>i:first-child{box-shadow:none}
+  .twk-chip svg{position:absolute;top:6px;left:6px;width:13px;height:13px;
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.3))}
+`;
+
+// ── useTweaks ───────────────────────────────────────────────────────────────
+// Single source of truth for tweak values. setTweak persists via the host
+// (__edit_mode_set_keys → host rewrites the EDITMODE block on disk).
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  // Accepts either setTweak('key', value) or setTweak({ key: value, ... }) so a
+  // useState-style call doesn't write a "[object Object]" key into the persisted
+  // JSON block.
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, window.location.origin);
+    // Same-window signal so in-page listeners (deck-stage rail thumbnails)
+    // can react — the parent message only reaches the host, not peers.
+    window.dispatchEvent(new CustomEvent('tweakchange', { detail: edits }));
+  }, []);
+  return [values, setTweak];
+}
+
+// ── TweaksPanel ─────────────────────────────────────────────────────────────
+// Floating shell. Registers the protocol listener BEFORE announcing
+// availability — if the announce ran first, the host's activate could land
+// before our handler exists and the toolbar toggle would silently no-op.
+// The close button posts __edit_mode_dismissed so the host's toolbar toggle
+// flips off in lockstep; the host echoes __deactivate_edit_mode back which
+// is what actually hides the panel.
+function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  // Auto-inject a rail toggle when a <deck-stage> is on the page. The
+  // toggle drives the deck's per-viewer _railVisible via window message;
+  // state is mirrored from the same localStorage key the deck reads so
+  // the control reflects reality across reloads. The mechanism is the
+  // message — authors who want custom placement can post it directly
+  // and pass noDeckControls to suppress this one.
+  const hasDeckStage = React.useMemo(
+    () => typeof document !== 'undefined' && !!document.querySelector('deck-stage'),
+    [],
+  );
+  // Hide the toggle until the host has actually enabled the rail (the
+  // __omelette_rail_enabled window message, posted only when the
+  // omelette_deck_rail_enabled flag is on for this user). The initial read
+  // covers TweaksPanel mounting after the message already arrived; the
+  // listener covers the common case of mounting first.
+  const [railEnabled, setRailEnabled] = React.useState(
+    () => hasDeckStage && !!document.querySelector('deck-stage')?._railEnabled,
+  );
+  React.useEffect(() => {
+    if (!hasDeckStage || railEnabled) return undefined;
+    const onMsg = (e) => {
+      if (e.data && e.data.type === '__omelette_rail_enabled') setRailEnabled(true);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [hasDeckStage, railEnabled]);
+  const [railVisible, setRailVisible] = React.useState(() => {
+    try { return localStorage.getItem('deck-stage.railVisible') !== '0'; } catch (e) { return true; }
+  });
+  const toggleRail = (on) => {
+    setRailVisible(on);
+    window.postMessage({ type: '__deck_rail_visible', on }, '*');
+  };
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', clampToViewport);
+      return () => window.removeEventListener('resize', clampToViewport);
+    }
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, window.location.origin);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, window.location.origin);
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" data-noncommentable=""
+           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" aria-label="Close tweaks"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">
+          {children}
+          {hasDeckStage && railEnabled && !noDeckControls && (
+            <TweakSection label="Deck">
+              <TweakToggle label="Thumbnail rail" value={railVisible} onChange={toggleRail} />
+            </TweakSection>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Layout helpers ──────────────────────────────────────────────────────────
+
+function TweakSection({ label, children }) {
+  return (
+    <>
+      <div className="twk-sect">{label}</div>
+      {children}
+    </>
+  );
+}
+
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl">
+        <span>{label}</span>
+        {value != null && <span className="twk-val">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  // The active value is read by pointer-move handlers attached for the lifetime
+  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  // Segments wrap mid-word once per-segment width runs out. The track is
+  // ~248px (280 panel − 28 body pad − 4 seg pad), each button loses 12px
+  // to its own padding, and 11.5px system-ui averages ~6.3px/char — so 2
+  // options fit ~16 chars each, 3 fit ~10. Past that (or >3 options), fall
+  // back to a dropdown rather than wrap.
+  const labelLen = (o) => String(typeof o === 'object' ? o.label : o).length;
+  const maxLen = options.reduce((m, o) => Math.max(m, labelLen(o)), 0);
+  const fitsAsSegments = maxLen <= ({ 2: 16, 3: 10 }[options.length] ?? 0);
+  if (!fitsAsSegments) {
+    // <select> emits strings — map back to the original option value so the
+    // fallback stays type-preserving (numbers, booleans) like the segment path.
+    const resolve = (s) => {
+      const m = options.find((o) => String(typeof o === 'object' ? o.value : o) === s);
+      return m === undefined ? s : typeof m === 'object' ? m.value : m;
+    };
+    return <TweakSelect label={label} value={value} options={options}
+                        onChange={(s) => onChange(resolve(s))} />;
+  }
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakSelect({ label, value, options, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <select className="twk-field" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'object' ? o.value : o;
+          const l = typeof o === 'object' ? o.label : o;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </TweakRow>
+  );
+}
+
+function TweakText({ label, value, placeholder, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <input className="twk-field" type="text" value={value} placeholder={placeholder}
+             onChange={(e) => onChange(e.target.value)} />
+    </TweakRow>
+  );
+}
+
+function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) {
+  const clamp = (n) => {
+    if (min != null && n < min) return min;
+    if (max != null && n > max) return max;
+    return n;
+  };
+  const startRef = React.useRef({ x: 0, val: 0 });
+  const onScrubStart = (e) => {
+    e.preventDefault();
+    startRef.current = { x: e.clientX, val: value };
+    const decimals = (String(step).split('.')[1] || '').length;
+    const move = (ev) => {
+      const dx = ev.clientX - startRef.current.x;
+      const raw = startRef.current.val + dx * step;
+      const snapped = Math.round(raw / step) * step;
+      onChange(clamp(Number(snapped.toFixed(decimals))));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div className="twk-num">
+      <span className="twk-num-lbl" onPointerDown={onScrubStart}>{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+             onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+      {unit && <span className="twk-num-unit">{unit}</span>}
+    </div>
+  );
+}
+
+// Relative-luminance contrast pick — checkmarks drawn over a swatch need to
+// read on both #111 and #fafafa without per-option configuration. Hex input
+// only (#rgb / #rrggbb); named or rgb()/hsl() colors fall through to "light".
+function __twkIsLight(hex) {
+  const h = String(hex).replace('#', '');
+  const x = h.length === 3 ? h.replace(/./g, (c) => c + c) : h.padEnd(6, '0');
+  const n = parseInt(x.slice(0, 6), 16);
+  if (Number.isNaN(n)) return true;
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return r * 299 + g * 587 + b * 114 > 148000;
+}
+
+const __TwkCheck = ({ light }) => (
+  <svg viewBox="0 0 14 14" aria-hidden="true">
+    <path d="M3 7.2 5.8 10 11 4.2" fill="none" strokeWidth="2.2"
+          strokeLinecap="round" strokeLinejoin="round"
+          stroke={light ? 'rgba(0,0,0,.78)' : '#fff'} />
+  </svg>
+);
+
+// TweakColor — curated color/palette picker. Each option is either a single
+// hex string or an array of 1-5 hex strings; the card adapts — a lone color
+// renders solid, a palette renders colors[0] as the hero (left ~2/3) with the
+// rest stacked in a sharp column on the right. onChange emits the
+// option in the shape it was passed (string stays string, array stays array).
+// Without options it falls back to the native color input for back-compat.
+function TweakColor({ label, value, options, onChange }) {
+  if (!options || !options.length) {
+    return (
+      <div className="twk-row twk-row-h">
+        <div className="twk-lbl"><span>{label}</span></div>
+        <input type="color" className="twk-swatch" value={value}
+               onChange={(e) => onChange(e.target.value)} />
+      </div>
+    );
+  }
+  // Native <input type=color> emits lowercase hex per the HTML spec, so
+  // compare case-insensitively. String() guards JSON.stringify(undefined),
+  // which returns the primitive undefined (no .toLowerCase).
+  const key = (o) => String(JSON.stringify(o)).toLowerCase();
+  const cur = key(value);
+  return (
+    <TweakRow label={label}>
+      <div className="twk-chips" role="radiogroup">
+        {options.map((o, i) => {
+          const colors = Array.isArray(o) ? o : [o];
+          const [hero, ...rest] = colors;
+          const sup = rest.slice(0, 4);
+          const on = key(o) === cur;
+          return (
+            <button key={i} type="button" className="twk-chip" role="radio"
+                    aria-checked={on} data-on={on ? '1' : '0'}
+                    aria-label={colors.join(', ')} title={colors.join(' · ')}
+                    style={{ background: hero }}
+                    onClick={() => onChange(o)}>
+              {sup.length > 0 && (
+                <span>
+                  {sup.map((c, j) => <i key={j} style={{ background: c }} />)}
+                </span>
+              )}
+              {on && <__TwkCheck light={__twkIsLight(hero)} />}
+            </button>
+          );
+        })}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakButton({ label, onClick, secondary = false }) {
+  return (
+    <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'}
+            onClick={onClick}>{label}</button>
+  );
+}
+
+Object.assign(window, {
+  useTweaks, TweaksPanel, TweakSection, TweakRow,
+  TweakSlider, TweakToggle, TweakRadio, TweakSelect,
+  TweakText, TweakNumber, TweakColor, TweakButton,
+});
+
+</script>
+
+<script type="text/babel">
+// data.jsx — sample data + helpers for Osmin habit tracker
+
+const WEEKDAYS_ES = ['D', 'L', 'M', 'X', 'J', 'V', 'S']; // Dom, Lun, Mar, Mié, Jue, Vie, Sáb
+const WEEKDAYS_LONG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MONTHS_ES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+// Habit definitions for the demo month (Dec 2024)
+// targetPerWeek: 1–7 (only for check habits, 7 = todos los días)
+// goal: numeric daily target (only for numeric habits)
+const DEFAULT_HABITS = [
+  { id: 'gym',    label: 'GYM',     short: 'GYM',  type: 'check',   targetPerWeek: 3, color: '#1F8A5B' },
+  { id: 'read',   label: 'Lectura', short: 'Read', type: 'check',   targetPerWeek: 7, color: '#7C5CD0' },
+  { id: 'steps',  label: 'Pasos',   short: 'Steps',type: 'numeric', goal: 7000, unit: '', color: '#2A6FDB' },
+  { id: 'leave',  label: 'Salir <19h', short: 'Out', type: 'check', targetPerWeek: 5, color: '#C97A2A' },
+];
+
+// Day status (highlight color, like the sketch: green = festivo, yellow = vacaciones)
+// 'work' = laborable (default, no highlight)
+const DAY_STATUS = {
+  WORK: 'work',
+  HOLIDAY: 'holiday',     // festivo (green)
+  VACATION: 'vacation',   // vacaciones (yellow)
+};
+
+// Build December 2024 sample data, faithful to the user's handwritten sketch
+function buildSampleMonth() {
+  // Dec 1 2024 was a Sunday (weekday 0)
+  const days = [];
+  const total = 31;
+  const firstWeekday = 0; // Sunday
+  for (let i = 1; i <= total; i++) {
+    const wd = (firstWeekday + i - 1) % 7;
+    const isWeekend = wd === 0 || wd === 6;
+    days.push({
+      day: i,
+      weekday: wd,
+      status: isWeekend ? DAY_STATUS.HOLIDAY : DAY_STATUS.WORK,
+      highlight: '',
+      milestone: false,
+      habits: { gym: 0, read: 0, steps: 0, leave: 0 },
+    });
+  }
+
+  // Highlights from the sketch
+  const set = (d, props) => Object.assign(days[d - 1], props);
+  set(1,  { highlight: 'Sushito con Eve' });
+  set(6,  { highlight: 'Finde pueblito — llegada' });
+  set(7,  { highlight: 'Finde pueblito — Infantes + cena Coto', milestone: true });
+  set(8,  { highlight: 'Finde pueblito — vuelta + Sushito' });
+  set(9,  { highlight: 'Médico familia' });
+  set(10, { highlight: 'Análisis sangre — LSH > 8 (de > 16)' });
+  set(11, { highlight: 'Cena Max hacia Villran + consenso MC ingesta' });
+  set(13, { highlight: 'Leadership + Black Star', milestone: true });
+  set(14, { highlight: 'Serie "100 años de soledad" en Netflix' });
+  set(15, { highlight: 'Cuidando a Eve con 40°' });
+  set(16, { status: DAY_STATUS.VACATION, highlight: 'Endocrino — aumento a 100mg' });
+  set(17, { status: DAY_STATUS.VACATION, highlight: 'Gripe — en moral' });
+  set(18, { status: DAY_STATUS.VACATION, highlight: 'Gripe' });
+  set(19, { status: DAY_STATUS.VACATION, highlight: 'Cenita navidad DATA + CRM', milestone: true });
+  set(20, { status: DAY_STATUS.VACATION, highlight: 'Gripe — curso Google' });
+  set(23, { status: DAY_STATUS.VACATION });
+  set(26, { status: DAY_STATUS.VACATION, highlight: 'Río' });
+  set(27, { status: DAY_STATUS.VACATION, highlight: 'Río' });
+  set(30, { status: DAY_STATUS.VACATION, highlight: 'Río — Tamara loca con souvenir + IPA' });
+  set(31, { status: DAY_STATUS.VACATION, highlight: 'Aperitivo + cenita nochevieja en moral', milestone: true });
+
+  // Habit fills — patterns that look real (mostly hits weekdays, drops during gripe + río)
+  const gymDays   = [2, 3, 4, 5, 9, 10, 11, 12, 13, 16];
+  const readDays  = [1, 2, 4, 5, 6, 9, 11, 13, 14, 15, 22, 24, 27, 29];
+  const leaveDays = [2, 3, 4, 5, 9, 10, 11, 12, 13, 16, 19];
+  // Steps: weekdays around 7-10k, weekends 4-12k, gripe (17-20) low
+  const steps = {
+    1: 6800, 2: 8400, 3: 9200, 4: 7900, 5: 8800, 6: 11200, 7: 14600, 8: 9100,
+    9: 8200, 10: 7600, 11: 9400, 12: 8900, 13: 10200, 14: 6300, 15: 5400,
+    16: 7100, 17: 1800, 18: 1200, 19: 4400, 20: 2900, 21: 5600, 22: 7200,
+    23: 6100, 24: 8400, 25: 9300, 26: 10800, 27: 11200, 28: 9600, 29: 8400,
+    30: 12400, 31: 8900,
+  };
+
+  for (const d of gymDays)   days[d - 1].habits.gym = 1;
+  for (const d of readDays)  days[d - 1].habits.read = 1;
+  for (const d of leaveDays) days[d - 1].habits.leave = 1;
+  for (const [d, v] of Object.entries(steps)) days[+d - 1].habits.steps = v;
+
+  // Highlight Christmas eve/day as festivo
+  set(24, { status: DAY_STATUS.HOLIDAY });
+  set(25, { status: DAY_STATUS.HOLIDAY });
+
+  return {
+    year: 2024,
+    month: 11, // Dec (0-indexed)
+    habits: DEFAULT_HABITS,
+    days,
+    goals: [
+      { id: 'g1', text: 'Cerrar Q4 con cena de equipo', done: true },
+      { id: 'g2', text: 'Recuperar de la gripe antes de Navidad', done: true },
+      { id: 'g3', text: 'Terminar curso Google PMP', done: false },
+      { id: 'g4', text: 'Año Nuevo en el río con la familia', done: true },
+      { id: 'g5', text: 'Leer 2 libros antes de fin de año', done: false },
+    ],
+  };
+}
+
+// Compute monthly stats for a habit
+// For check habits, pct is measured against targetPerWeek (days/week target).
+function habitStats(month, habit) {
+  const days = month.days;
+  if (habit.type === 'check') {
+    const done = days.filter(d => d.habits[habit.id] === 1).length;
+    const tpw = habit.targetPerWeek || 7;
+    const expected = Math.max(1, Math.round((days.length / 7) * tpw));
+    const pct = Math.min(100, Math.round((done / expected) * 100));
+    return { done, total: days.length, expected, pct };
+  }
+  if (habit.type === 'numeric') {
+    const hit = days.filter(d => (d.habits[habit.id] || 0) >= habit.goal).length;
+    const sum = days.reduce((a, d) => a + (d.habits[habit.id] || 0), 0);
+    return {
+      done: hit, total: days.length,
+      pct: Math.round((hit / days.length) * 100),
+      avg: Math.round(sum / days.length),
+      sum,
+    };
+  }
+  return { done: 0, total: 0, pct: 0 };
+}
+
+// Longest current streak ending today (or end of month) for a habit
+function habitStreak(month, habit) {
+  const days = month.days;
+  let best = 0, cur = 0;
+  for (const d of days) {
+    const v = d.habits[habit.id];
+    const ok = habit.type === 'check' ? v === 1 : (v || 0) >= habit.goal;
+    if (ok) { cur++; best = Math.max(best, cur); } else { cur = 0; }
+  }
+  return best;
+}
+
+// Cycle a check value 0 → 1 → -1 → 0 (-1 means "skipped intentionally")
+function cycleCheck(v) {
+  if (v === 0 || v === undefined) return 1;
+  if (v === 1) return -1;
+  return 0;
+}
+
+// Cycle day status work → holiday → vacation → work
+function cycleStatus(s) {
+  if (s === DAY_STATUS.WORK) return DAY_STATUS.HOLIDAY;
+  if (s === DAY_STATUS.HOLIDAY) return DAY_STATUS.VACATION;
+  return DAY_STATUS.WORK;
+}
+
+// Build a blank month, inheriting habits from the previous one
+function buildBlankMonth(year, monthIdx, prevHabits) {
+  const habits = (prevHabits || DEFAULT_HABITS).map(h => ({ ...h }));
+  const firstWeekday = new Date(year, monthIdx, 1).getDay();
+  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+  const days = [];
+  for (let i = 1; i <= daysInMonth; i++) {
+    const wd = (firstWeekday + i - 1) % 7;
+    const isWeekend = wd === 0 || wd === 6;
+    const habitValues = {};
+    for (const h of habits) habitValues[h.id] = 0;
+    days.push({
+      day: i,
+      weekday: wd,
+      status: isWeekend ? DAY_STATUS.HOLIDAY : DAY_STATUS.WORK,
+      highlight: '',
+      milestone: false,
+      habits: habitValues,
+    });
+  }
+  return { year, month: monthIdx, habits, days, goals: [] };
+}
+
+Object.assign(window, {
+  WEEKDAYS_ES, WEEKDAYS_LONG, MONTHS_ES, DEFAULT_HABITS, DAY_STATUS,
+  buildSampleMonth, buildBlankMonth, habitStats, habitStreak, cycleCheck, cycleStatus,
+});
+
+</script>
+
+<script type="text/babel">
+// table-layout.jsx — Layout A: faithful table view (rows = days, cols = habits)
+
+function StatusBand({ status }) {
+  const colors = {
+    work: 'transparent',
+    holiday: 'var(--c-festivo)',
+    vacation: 'var(--c-vacaciones)',
+  };
+  return (
+    <div style={{
+      width: 6, alignSelf: 'stretch', borderRadius: 3,
+      background: colors[status],
+      opacity: status === 'work' ? 0 : 1,
+    }} />
+  );
+}
+
+function CheckCell({ value, color, onClick }) {
+  // 0 = empty, 1 = done, -1 = skipped
+  const fill = value === 1 ? color : 'transparent';
+  const border = value === -1 ? 'var(--line-strong)' : (value === 1 ? color : 'var(--line)');
+  return (
+    <button
+      onClick={onClick}
+      className="osmin-cell"
+      style={{
+        width: 28, height: 28, borderRadius: 8,
+        border: `1.5px solid ${border}`,
+        background: fill,
+        cursor: 'pointer', padding: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'all 120ms ease',
+      }}
+    >
+      {value === 1 && (
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M3 7.5L5.8 10L11 4.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )}
+      {value === -1 && (
+        <div style={{ width: 10, height: 1.5, background: 'var(--text-muted)' }} />
+      )}
+    </button>
+  );
+}
+
+function NumericCell({ value, goal, color, onChange }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(String(value || ''));
+  React.useEffect(() => setDraft(String(value || '')), [value, editing]);
+
+  const pct = goal ? Math.min(1, value / goal) : 0;
+  const hit = value >= goal && value > 0;
+
+  const commit = () => {
+    const n = parseInt(draft.replace(/[^\d]/g, ''), 10);
+    onChange(isNaN(n) ? 0 : n);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+        style={{
+          width: 60, height: 28, borderRadius: 8,
+          border: `1.5px solid ${color}`, padding: '0 6px',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 12,
+          textAlign: 'center', background: 'var(--surface)',
+          color: 'var(--text)', outline: 'none',
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="osmin-cell"
+      style={{
+        width: 60, height: 28, borderRadius: 8,
+        border: `1.5px solid ${value > 0 ? color : 'var(--line)'}`,
+        background: value > 0 ? `color-mix(in oklab, ${color} ${hit ? 18 : 8}%, transparent)` : 'transparent',
+        cursor: 'pointer', padding: 0,
+        position: 'relative', overflow: 'hidden',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5,
+        fontVariantNumeric: 'tabular-nums',
+        color: value > 0 ? 'var(--text)' : 'var(--text-muted)',
+        fontWeight: hit ? 600 : 500,
+      }}
+    >
+      <div style={{
+        position: 'absolute', left: 0, bottom: 0, height: 2,
+        width: `${pct * 100}%`, background: color, opacity: 0.5,
+      }} />
+      <span style={{ position: 'relative' }}>
+        {value > 0 ? value.toLocaleString('es') : '—'}
+      </span>
+    </button>
+  );
+}
+
+function TableLayout({ month, setMonth, density }) {
+  const rowH = density === 'compact' ? 30 : 38;
+
+  const _today = new Date();
+  const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
+    ? _today.getDate() : null;
+
+  const updateDay = (idx, mut) => {
+    setMonth(m => {
+      const next = { ...m, days: m.days.slice() };
+      next.days[idx] = { ...next.days[idx], ...mut(next.days[idx]) };
+      return next;
+    });
+  };
+  const updateHabit = (idx, hid, val) => updateDay(idx, d => ({ habits: { ...d.habits, [hid]: val } }));
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 14,
+      overflow: 'hidden',
+    }}>
+      {/* Header row */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: `64px 1fr ${month.habits.map(h => h.type === 'numeric' ? '76px' : '44px').join(' ')} 24px`,
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 16px',
+        borderBottom: '1px solid var(--line)',
+        background: 'var(--surface-alt)',
+        fontFamily: 'Inter, sans-serif',
+        fontSize: 10.5,
+        fontWeight: 600,
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      }}>
+        <div>Día</div>
+        <div>Highlight</div>
+        {month.habits.map(h => (
+          <div key={h.id} style={{ textAlign: 'center', color: h.color }}>{h.short}</div>
+        ))}
+        <div></div>
+      </div>
+
+      {/* Day rows */}
+      {month.days.map((d, idx) => {
+        const wd = WEEKDAYS_ES[d.weekday];
+        const isWeekend = d.weekday === 0 || d.weekday === 6;
+        const isToday = d.day === todayDay;
+        const stripeBg = isToday
+          ? `color-mix(in oklab, var(--accent) 6%, var(--surface))`
+          : idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-alt)';
+        return (
+          <div
+            key={d.day}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `64px 1fr ${month.habits.map(h => h.type === 'numeric' ? '76px' : '44px').join(' ')} 24px`,
+              alignItems: 'center',
+              minHeight: rowH,
+              padding: '0 16px',
+              borderBottom: idx === month.days.length - 1 ? 'none' : `1px solid ${isToday ? 'color-mix(in oklab, var(--accent) 20%, var(--line-soft))' : 'var(--line-soft)'}`,
+              borderTop: isToday ? `1px solid color-mix(in oklab, var(--accent) 20%, var(--line-soft))` : 'none',
+              background: stripeBg,
+              gap: 8,
+            }}
+          >
+            {/* Day cell */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                onClick={() => updateDay(idx, d => ({ status: cycleStatus(d.status) }))}
+                title="Cambiar estado del día"
+                style={{
+                  width: 26, height: 22, borderRadius: 6, padding: 0,
+                  border: isToday ? '1.5px solid var(--accent)' : 'none',
+                  cursor: 'pointer',
+                  background: d.status === 'holiday' ? 'var(--c-festivo)' :
+                              d.status === 'vacation' ? 'var(--c-vacaciones)' :
+                              isToday ? `color-mix(in oklab, var(--accent) 14%, var(--surface))` : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: 12,
+                  fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                  color: d.status === 'work' ? (isToday ? 'var(--accent)' : 'var(--text)') : '#1a1a1a',
+                }}
+              >{d.day}</button>
+              <span style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+                color: isWeekend ? 'var(--accent)' : 'var(--text-muted)',
+                fontWeight: 500,
+              }}>{wd}</span>
+            </div>
+
+            {/* Highlight */}
+            <HighlightInput
+              value={d.highlight}
+              milestone={d.milestone}
+              onChange={v => updateDay(idx, () => ({ highlight: v }))}
+              onToggleMilestone={() => updateDay(idx, d => ({ milestone: !d.milestone }))}
+            />
+
+            {/* Habit cells */}
+            {month.habits.map(h => (
+              <div key={h.id} style={{ display: 'flex', justifyContent: 'center' }}>
+                {h.type === 'check' ? (
+                  <CheckCell
+                    value={d.habits[h.id]}
+                    color={h.color}
+                    onClick={() => updateHabit(idx, h.id, cycleCheck(d.habits[h.id]))}
+                  />
+                ) : (
+                  <NumericCell
+                    value={d.habits[h.id] || 0}
+                    goal={h.goal}
+                    color={h.color}
+                    onChange={v => updateHabit(idx, h.id, v)}
+                  />
+                )}
+              </div>
+            ))}
+
+            {/* Status band */}
+            <StatusBand status={d.status} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HighlightInput({ value, milestone, onChange, onToggleMilestone }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <button
+        onClick={onToggleMilestone}
+        title="Marcar como hito del mes"
+        style={{
+          width: 18, height: 18, padding: 0, border: 'none',
+          background: 'transparent', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: milestone ? 1 : 0.25,
+          transition: 'opacity 120ms',
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill={milestone ? 'var(--accent)' : 'none'} stroke={milestone ? 'var(--accent)' : 'var(--text-muted)'} strokeWidth="1.5">
+          <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder=""
+        style={{
+          flex: 1, minWidth: 0,
+          border: 'none', outline: 'none', background: 'transparent',
+          fontFamily: 'Inter, sans-serif', fontSize: 13.5,
+          color: 'var(--text)',
+          padding: '4px 0',
+        }}
+      />
+    </div>
+  );
+}
+
+Object.assign(window, { TableLayout });
+
+</script>
+
+<script type="text/babel">
+// journal-layout.jsx — Layout B: mini-calendar grid + day-card journal stream
+
+function MiniCalendar({ month, density, selectedDay, onSelectDay, todayDay }) {
+  const firstDay = month.days[0].weekday; // 0=Sun
+  // We render Mon-first European week
+  const weekStartsMon = true;
+  const offset = weekStartsMon ? (firstDay === 0 ? 6 : firstDay - 1) : firstDay;
+
+  const cells = [];
+  for (let i = 0; i < offset; i++) cells.push(null);
+  for (const d of month.days) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const wdHeaders = weekStartsMon
+    ? ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+    : ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 14,
+      padding: 16,
+    }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4,
+        marginBottom: 8,
+      }}>
+        {wdHeaders.map((w, i) => (
+          <div key={i} style={{
+            textAlign: 'center',
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+            color: 'var(--text-muted)', fontWeight: 600,
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>{w}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const sel = selectedDay === d.day;
+          const isToday = d.day === todayDay;
+          const bg = d.status === 'holiday' ? 'var(--c-festivo)' :
+                     d.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent';
+          const habitDots = month.habits.map(h => {
+            const v = d.habits[h.id];
+            const ok = h.type === 'check' ? v === 1 : (v || 0) >= h.goal;
+            return ok ? h.color : null;
+          });
+          return (
+            <button
+              key={i}
+              onClick={() => onSelectDay(d.day)}
+              style={{
+                aspectRatio: '1',
+                padding: 4,
+                background: isToday && bg === 'transparent'
+                  ? `color-mix(in oklab, var(--accent) 10%, var(--surface))`
+                  : bg,
+                border: sel ? '1.5px solid var(--text)'
+                  : isToday ? '1.5px solid var(--accent)'
+                  : '1px solid var(--line-soft)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'flex-start', justifyContent: 'space-between',
+                position: 'relative',
+              }}
+            >
+              <div style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 12, fontWeight: 600,
+                color: bg !== 'transparent' ? '#1a1a1a' : isToday ? 'var(--accent)' : 'var(--text)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>{d.day}</div>
+              {d.milestone && (
+                <div style={{
+                  position: 'absolute', top: 3, right: 3,
+                  width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)',
+                }} />
+              )}
+              <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {habitDots.map((c, j) => (
+                  <div key={j} style={{
+                    width: 5, height: 5, borderRadius: '50%',
+                    background: c || 'transparent',
+                    border: c ? 'none' : '1px solid var(--line)',
+                  }} />
+                ))}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DayCard({ day, habits, selected, isToday, onUpdate, onSelect }) {
+  const wd = WEEKDAYS_LONG[day.weekday];
+  const stColor = day.status === 'holiday' ? 'var(--c-festivo)' :
+                  day.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent';
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        background: isToday
+          ? `color-mix(in oklab, var(--accent) 5%, var(--surface))`
+          : 'var(--surface)',
+        border: selected ? '1.5px solid var(--text)'
+          : isToday ? '1.5px solid var(--accent)'
+          : '1px solid var(--line)',
+        borderRadius: 12,
+        padding: '14px 16px',
+        cursor: 'pointer',
+        display: 'flex', gap: 14,
+      }}
+    >
+      {/* date stub */}
+      <div style={{
+        flexShrink: 0, width: 48, display: 'flex',
+        flexDirection: 'column', alignItems: 'center',
+        paddingTop: 2, gap: 2,
+      }}>
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 26, fontWeight: 600, lineHeight: 1,
+          fontVariantNumeric: 'tabular-nums',
+          color: isToday ? 'var(--accent)' : 'var(--text)',
+        }}>{String(day.day).padStart(2, '0')}</div>
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+          color: 'var(--text-muted)', textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+        }}>{wd.slice(0, 3)}</div>
+        {stColor !== 'transparent' && (
+          <div style={{
+            width: 24, height: 4, borderRadius: 2,
+            background: stColor, marginTop: 4,
+          }} />
+        )}
+      </div>
+
+      {/* content */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {day.milestone && (
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="var(--accent)">
+              <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z"/>
+            </svg>
+          )}
+          <input
+            value={day.highlight}
+            onChange={e => onUpdate({ highlight: e.target.value })}
+            placeholder="Escribe el highlight del día…"
+            onClick={e => e.stopPropagation()}
+            style={{
+              flex: 1, border: 'none', outline: 'none', background: 'transparent',
+              fontFamily: 'Inter, sans-serif', fontSize: 14.5,
+              color: day.highlight ? 'var(--text)' : 'var(--text-muted)',
+              padding: 0,
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {habits.map(h => {
+            const v = day.habits[h.id];
+            const ok = h.type === 'check' ? v === 1 : (v || 0) >= h.goal;
+            const tinted = (h.type === 'check' ? v === 1 : v > 0);
+            return (
+              <button
+                key={h.id}
+                onClick={e => {
+                  e.stopPropagation();
+                  if (h.type === 'check') {
+                    onUpdate({ habits: { ...day.habits, [h.id]: cycleCheck(v) } });
+                  } else {
+                    const cur = v || 0;
+                    const next = prompt(`${h.label} (meta: ${h.goal})`, String(cur));
+                    if (next !== null) {
+                      const n = parseInt(next.replace(/[^\d]/g, ''), 10);
+                      onUpdate({ habits: { ...day.habits, [h.id]: isNaN(n) ? 0 : n } });
+                    }
+                  }
+                }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '4px 10px', borderRadius: 999,
+                  border: `1px solid ${tinted ? h.color : 'var(--line)'}`,
+                  background: tinted ? `color-mix(in oklab, ${h.color} ${ok ? 16 : 8}%, transparent)` : 'transparent',
+                  fontFamily: 'Inter, sans-serif',
+                  fontSize: 11.5, fontWeight: 500,
+                  color: tinted ? 'var(--text)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: tinted ? h.color : 'var(--line-strong)',
+                }} />
+                <span>{h.short}</span>
+                {h.type === 'numeric' && (
+                  <span style={{
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontVariantNumeric: 'tabular-nums',
+                    color: tinted ? 'var(--text)' : 'var(--text-muted)',
+                  }}>
+                    {v ? v.toLocaleString('es') : '—'}
+                  </span>
+                )}
+                {v === -1 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>skip</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JournalLayout({ month, setMonth, density }) {
+  const [selected, setSelected] = React.useState(null);
+  const updateDay = (day, mut) => {
+    setMonth(m => {
+      const next = { ...m, days: m.days.slice() };
+      const idx = day - 1;
+      next.days[idx] = { ...next.days[idx], ...mut };
+      return next;
+    });
+  };
+
+  const _today = new Date();
+  const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
+    ? _today.getDate() : null;
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ position: 'sticky', top: 0 }}>
+        <MiniCalendar month={month} density={density} selectedDay={selected} onSelectDay={setSelected} todayDay={todayDay} />
+        <div style={{
+          marginTop: 12, padding: 14,
+          background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14,
+          fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Leyenda</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-festivo)' }} />
+            <span>Festivo / fin de semana</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-vacaciones)' }} />
+            <span>Vacaciones</span>
+          </div>
+          {month.habits.map(h => (
+            <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: h.color }} />
+              <span>{h.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: density === 'compact' ? 6 : 10 }}>
+        {month.days.map(d => (
+          <DayCard
+            key={d.day}
+            day={d}
+            habits={month.habits}
+            selected={selected === d.day}
+            isToday={d.day === todayDay}
+            onSelect={() => setSelected(d.day)}
+            onUpdate={mut => updateDay(d.day, mut)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { JournalLayout });
+
+</script>
+
+<script type="text/babel">
+// overview.jsx — Month overview: stats, milestones, editable goal checklist
+
+function OverviewStatTile({ habit, month }) {
+  const stats = habitStats(month, habit);
+  const streak = habitStreak(month, habit);
+  return (
+    <div style={{
+      flex: 1, minWidth: 0,
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 12,
+      padding: '16px 18px',
+      display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: habit.color }} />
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{habit.label}</div>
+        <div style={{ flex: 1 }} />
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5,
+          color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums',
+        }}>
+          {habit.type === 'numeric'
+            ? `${habit.goal.toLocaleString('es')}/día`
+            : (habit.targetPerWeek === 7 ? 'todos los días' : `${habit.targetPerWeek}/sem`)}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div style={{
+          fontFamily: 'Instrument Serif, serif', fontSize: 38, lineHeight: 1,
+          color: 'var(--text)', fontVariantNumeric: 'tabular-nums',
+        }}>
+          {habit.type === 'numeric' ? stats.avg.toLocaleString('es') : stats.done}
+        </div>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-muted)' }}>
+          {habit.type === 'numeric' ? 'media/día' : `de ${stats.total}`}
+        </div>
+      </div>
+      <div style={{ height: 4, borderRadius: 2, background: 'var(--line)', overflow: 'hidden' }}>
+        <div style={{ width: `${stats.pct}%`, height: '100%', background: habit.color }} />
+      </div>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5,
+        color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums',
+      }}>
+        <span>{stats.pct}% cumplido</span>
+        <span>racha {streak}d</span>
+      </div>
+    </div>
+  );
+}
+
+function StarIcon({ filled = true, size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14"
+         fill={filled ? 'var(--accent)' : 'none'}
+         stroke={filled ? 'var(--accent)' : 'var(--text-muted)'}
+         strokeWidth="1.5" strokeLinejoin="round">
+      <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z" />
+    </svg>
+  );
+}
+
+function GoalRow({ goal, onChange, onDelete }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '12px 14px',
+      borderBottom: '1px solid var(--line-soft)',
+    }}>
+      <button
+        onClick={() => onChange({ done: !goal.done })}
+        style={{
+          width: 22, height: 22, borderRadius: 6,
+          border: `1.5px solid ${goal.done ? 'var(--accent)' : 'var(--line-strong)'}`,
+          background: goal.done ? 'var(--accent)' : 'transparent',
+          cursor: 'pointer', padding: 0, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 120ms',
+        }}
+      >
+        {goal.done && (
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path d="M3 7.5L5.8 10L11 4.5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </button>
+      <input
+        value={goal.text}
+        onChange={e => onChange({ text: e.target.value })}
+        placeholder="Escribe un objetivo del mes…"
+        style={{
+          flex: 1, border: 'none', outline: 'none', background: 'transparent',
+          fontFamily: 'Inter, sans-serif', fontSize: 14.5,
+          color: goal.done ? 'var(--text-muted)' : 'var(--text)',
+          textDecoration: goal.done ? 'line-through' : 'none',
+          padding: 0,
+        }}
+      />
+      <button
+        onClick={onDelete}
+        title="Eliminar"
+        style={{
+          width: 22, height: 22, borderRadius: 6, border: 'none',
+          background: 'transparent', cursor: 'pointer',
+          color: 'var(--text-muted)', opacity: 0.5,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function GoalsChecklist({ month, setMonth }) {
+  const goals = month.goals || [];
+  const updateGoal = (id, mut) => setMonth(m => ({
+    ...m, goals: m.goals.map(g => g.id === id ? { ...g, ...mut } : g),
+  }));
+  const deleteGoal = (id) => setMonth(m => ({ ...m, goals: m.goals.filter(g => g.id !== id) }));
+  const addGoal = () => setMonth(m => ({
+    ...m,
+    goals: [...m.goals, { id: 'g' + Date.now(), text: '', done: false }],
+  }));
+  const done = goals.filter(g => g.done).length;
+  const atLimit = goals.length >= 5;
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 14,
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        padding: '16px 18px 12px',
+        borderBottom: '1px solid var(--line)',
+      }}>
+        <div>
+          <h3 style={{
+            margin: 0,
+            fontFamily: 'Instrument Serif, serif', fontWeight: 400,
+            fontSize: 22, color: 'var(--text)',
+          }}>Hitos que me marco este mes</h3>
+          <div style={{
+            marginTop: 2,
+            fontFamily: 'Inter, sans-serif', fontSize: 12,
+            color: 'var(--text-muted)',
+          }}>
+            Define 4-5 objetivos principales y márcalos a lo largo del mes
+          </div>
+        </div>
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 12, color: 'var(--text-muted)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>{done}/{goals.length}</div>
+      </div>
+
+      <div>
+        {goals.map(g => (
+          <GoalRow
+            key={g.id}
+            goal={g}
+            onChange={mut => updateGoal(g.id, mut)}
+            onDelete={() => deleteGoal(g.id)}
+          />
+        ))}
+      </div>
+
+      <div style={{ padding: '10px 14px' }}>
+        <button
+          onClick={addGoal}
+          disabled={atLimit}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: 8,
+            border: '1px dashed var(--line-strong)',
+            background: 'transparent', cursor: atLimit ? 'not-allowed' : 'pointer',
+            color: atLimit ? 'var(--text-muted)' : 'var(--text-soft)',
+            fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500,
+            opacity: atLimit ? 0.5 : 1,
+            width: '100%', justifyContent: 'center',
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          {atLimit ? 'Máximo 5 hitos' : 'Añadir hito'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MonthMilestones({ month }) {
+  const ms = month.days.filter(d => d.milestone);
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 14,
+      padding: '16px 18px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{
+          margin: 0, fontFamily: 'Instrument Serif, serif',
+          fontWeight: 400, fontSize: 22, color: 'var(--text)',
+        }}>Días destacados</h3>
+        <div style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 11,
+          color: 'var(--text-muted)',
+        }}>marcados con ★ desde la vista mensual</div>
+      </div>
+
+      {ms.length === 0 ? (
+        <div style={{
+          padding: '24px 8px',
+          textAlign: 'center',
+          color: 'var(--text-muted)',
+          fontSize: 13,
+        }}>
+          Aún no has marcado ningún día como destacado este mes.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {ms.map(d => {
+            const wd = WEEKDAYS_LONG[d.weekday];
+            return (
+              <div key={d.day} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '10px 4px',
+                borderBottom: '1px solid var(--line-soft)',
+              }}>
+                <StarIcon size={13} />
+                <div style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 13, color: 'var(--text)',
+                  fontVariantNumeric: 'tabular-nums',
+                  minWidth: 40,
+                }}>{String(d.day).padStart(2, '0')}</div>
+                <div style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 11,
+                  color: 'var(--text-muted)', textTransform: 'lowercase',
+                  minWidth: 70,
+                }}>{wd}</div>
+                <div style={{
+                  flex: 1,
+                  fontFamily: 'Inter, sans-serif', fontSize: 14,
+                  color: 'var(--text)', fontWeight: 500,
+                }}>{d.highlight || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sin descripción)</span>}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HabitEditor({ month, setMonth }) {
+  const [collapsed, setCollapsed] = React.useState(false);
+  const habits = month.habits;
+  const update = (id, mut) => setMonth(m => ({
+    ...m,
+    habits: m.habits.map(h => h.id === id ? { ...h, ...mut } : h),
+  }));
+  const remove = (id) => setMonth(m => {
+    const next = { ...m, habits: m.habits.filter(h => h.id !== id) };
+    next.days = next.days.map(d => {
+      const habits = { ...d.habits };
+      delete habits[id];
+      return { ...d, habits };
+    });
+    return next;
+  });
+  const palette = ['#1F8A5B', '#7C5CD0', '#2A6FDB', '#C97A2A', '#D9445C', '#0E8E8E'];
+  const add = () => setMonth(m => {
+    const id = 'h' + Date.now();
+    const used = m.habits.map(h => h.color);
+    const color = palette.find(c => !used.includes(c)) || palette[m.habits.length % palette.length];
+    return {
+      ...m,
+      habits: [...m.habits, { id, label: 'Nuevo hábito', short: 'New', type: 'check', targetPerWeek: 7, color }],
+      days: m.days.map(d => ({ ...d, habits: { ...d.habits, [id]: 0 } })),
+    };
+  });
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 14,
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '16px 18px 12px',
+        borderBottom: collapsed ? 'none' : '1px solid var(--line)',
+        display: 'flex', alignItems: 'flex-start', gap: 12,
+      }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{
+            margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400,
+            fontSize: 22, color: 'var(--text)',
+          }}>Configuración de hábitos</h3>
+          <div style={{
+            marginTop: 2, fontFamily: 'Inter, sans-serif', fontSize: 12,
+            color: 'var(--text-muted)',
+          }}>
+            {collapsed
+              ? `${habits.length} hábitos configurados`
+              : 'Personaliza qué tracker y target quieres para este mes'}
+          </div>
+        </div>
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          title={collapsed ? 'Expandir' : 'Minimizar'}
+          style={{
+            width: 28, height: 28, borderRadius: 7,
+            border: '1px solid var(--line)',
+            background: 'var(--surface-alt)',
+            cursor: 'pointer', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--text-soft)', padding: 0,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+               style={{ transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 160ms' }}>
+            <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      {!collapsed && (
+        <>
+          {/* Column headers */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '24px 1.2fr 0.55fr 1fr 1.2fr 28px',
+            gap: 12,
+            padding: '5px 14px 4px',
+            borderBottom: '1px solid var(--line-soft)',
+            fontFamily: 'Inter, sans-serif', fontSize: 9.5, fontWeight: 600,
+            color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em',
+          }}>
+            <div />
+            <div>Nombre</div>
+            <div>Vista</div>
+            <div>Tipo</div>
+            <div>Target</div>
+            <div />
+          </div>
+
+          {habits.map(h => (
+            <HabitRow
+              key={h.id}
+              habit={h}
+              palette={palette}
+              onChange={mut => update(h.id, mut)}
+              onDelete={() => remove(h.id)}
+              canDelete={habits.length > 1}
+            />
+          ))}
+
+          <div style={{ padding: '10px 14px' }}>
+            <button
+              onClick={add}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 12px', borderRadius: 8,
+                border: '1px dashed var(--line-strong)',
+                background: 'transparent', cursor: 'pointer',
+                color: 'var(--text-soft)',
+                fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500,
+                width: '100%', justifyContent: 'center',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Añadir hábito
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function HabitRow({ habit, palette, onChange, onDelete, canDelete }) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '24px 1.2fr 0.55fr 1fr 1.2fr 28px',
+      alignItems: 'center', gap: 12,
+      padding: '10px 14px',
+      borderBottom: '1px solid var(--line-soft)',
+    }}>
+      {/* color picker */}
+      <ColorDot color={habit.color} options={palette} onChange={c => onChange({ color: c })} />
+
+      {/* full name */}
+      <input
+        value={habit.label}
+        onChange={e => onChange({ label: e.target.value })}
+        placeholder="Nombre del hábito"
+        style={{
+          border: '1px solid var(--line)',
+          outline: 'none',
+          background: 'var(--surface-alt)',
+          borderRadius: 6,
+          padding: '3px 7px',
+          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+          color: 'var(--text)',
+          minWidth: 0, width: '100%',
+          display: 'block',
+        }}
+      />
+
+      {/* short / abbreviation shown in table header */}
+      <input
+        value={habit.short}
+        onChange={e => onChange({ short: e.target.value.slice(0, 7) })}
+        maxLength={7}
+        placeholder="Abrev."
+        title="Texto que aparece en la cabecera de la vista mensual"
+        style={{
+          border: '1px solid var(--line)',
+          outline: 'none',
+          background: 'var(--surface-alt)',
+          borderRadius: 6,
+          padding: '3px 7px',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 600,
+          color: 'var(--text)',
+          minWidth: 0, width: '100%',
+        }}
+      />
+
+      {/* type segmented */}
+      <div style={{
+        display: 'inline-flex', padding: 2,
+        background: 'var(--surface-alt)',
+        border: '1px solid var(--line)', borderRadius: 7,
+      }}>
+        {[
+          { id: 'check', label: 'Check' },
+          { id: 'numeric', label: 'Número' },
+        ].map(o => (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id === 'numeric'
+              ? { type: 'numeric', goal: habit.goal || 7000 }
+              : { type: 'check', targetPerWeek: habit.targetPerWeek || 7 })}
+            style={{
+              padding: '4px 10px', flex: 1,
+              background: habit.type === o.id ? 'var(--surface)' : 'transparent',
+              border: 'none', cursor: 'pointer', borderRadius: 5,
+              fontFamily: 'Inter, sans-serif', fontSize: 11,
+              fontWeight: habit.type === o.id ? 600 : 500,
+              color: habit.type === o.id ? 'var(--text)' : 'var(--text-muted)',
+            }}
+          >{o.label}</button>
+        ))}
+      </div>
+
+      {/* target editor */}
+      <TargetEditor habit={habit} onChange={onChange} />
+
+      {/* delete */}
+      <button
+        onClick={onDelete}
+        disabled={!canDelete}
+        title="Eliminar hábito"
+        style={{
+          width: 24, height: 24, borderRadius: 6, border: 'none',
+          background: 'transparent',
+          cursor: canDelete ? 'pointer' : 'not-allowed',
+          color: 'var(--text-muted)', opacity: canDelete ? 0.5 : 0.2,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function ColorDot({ color, options, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: 18, height: 18, borderRadius: '50%',
+          background: color, border: '1.5px solid var(--surface)',
+          boxShadow: '0 0 0 1px var(--line)',
+          cursor: 'pointer', padding: 0,
+        }}
+      />
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+          }} />
+          <div style={{
+            position: 'absolute', top: 24, left: 0, zIndex: 101,
+            background: 'var(--surface)', border: '1px solid var(--line)',
+            borderRadius: 8, padding: 6,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            display: 'grid', gridTemplateColumns: 'repeat(3, 18px)', gap: 6,
+          }}>
+            {options.map(c => (
+              <button
+                key={c}
+                onClick={() => { onChange(c); setOpen(false); }}
+                style={{
+                  width: 18, height: 18, borderRadius: '50%',
+                  background: c, border: c === color ? '2px solid var(--text)' : '1px solid var(--line)',
+                  cursor: 'pointer', padding: 0,
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TargetEditor({ habit, onChange }) {
+  if (habit.type === 'numeric') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          type="number"
+          value={habit.goal || 0}
+          onChange={e => onChange({ goal: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+          style={{
+            width: 80, height: 26,
+            border: '1px solid var(--line)', borderRadius: 6,
+            background: 'var(--surface-alt)', color: 'var(--text)',
+            padding: '0 8px',
+            fontFamily: 'JetBrains Mono, monospace', fontSize: 12,
+            fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+            outline: 'none',
+          }}
+        />
+        <span style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 12,
+          color: 'var(--text-muted)',
+        }}>al día</span>
+      </div>
+    );
+  }
+  // check: target per week
+  const tpw = habit.targetPerWeek || 7;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <select
+        value={tpw}
+        onChange={e => onChange({ targetPerWeek: parseInt(e.target.value, 10) })}
+        style={{
+          height: 26, padding: '0 22px 0 8px',
+          border: '1px solid var(--line)', borderRadius: 6,
+          background: 'var(--surface-alt)', color: 'var(--text)',
+          fontFamily: 'Inter, sans-serif', fontSize: 12,
+          outline: 'none', cursor: 'pointer',
+          appearance: 'none', WebkitAppearance: 'none',
+          backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='gray' d='M0 0h10L5 6z'/></svg>\")",
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right 6px center',
+        }}
+      >
+        {[1, 2, 3, 4, 5, 6, 7].map(n => (
+          <option key={n} value={n}>
+            {n === 7 ? 'Todos los días' : `${n} ${n === 1 ? 'día' : 'días'}/semana`}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function OverviewView({ month, setMonth }) {
+  // Aggregate metrics
+  const totalDone = month.habits.reduce((sum, h) => sum + habitStats(month, h).done, 0);
+  const totalPossible = month.habits.length * month.days.length;
+  const avgPct = Math.round((totalDone / totalPossible) * 100);
+
+  const goals = month.goals || [];
+  const goalsDone = goals.filter(g => g.done).length;
+  const goalsPct = goals.length ? Math.round((goalsDone / goals.length) * 100) : 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Top summary band */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12,
+      }}>
+        <SummaryCard
+          label="Cumplimiento general"
+          value={`${avgPct}%`}
+          sub={`media de ${month.habits.length} hábitos`}
+        />
+        <SummaryCard
+          label="Hitos del mes"
+          value={`${goalsDone}/${goals.length || 0}`}
+          sub={`${goalsPct}% completado`}
+        />
+        <SummaryCard
+          label="Días destacados"
+          value={month.days.filter(d => d.milestone).length}
+          sub="marcados con ★"
+        />
+      </div>
+
+      {/* Editable goal checklist */}
+      <GoalsChecklist month={month} setMonth={setMonth} />
+
+      {/* Per-habit stats */}
+      <div>
+        <SectionLabel>Estadísticas por hábito</SectionLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+          {month.habits.map(h => (
+            <OverviewStatTile key={h.id} habit={h} month={month} />
+          ))}
+        </div>
+      </div>
+
+      {/* Editable habit configuration (below stats so it doesn't crowd them) */}
+      <HabitEditor month={month} setMonth={setMonth} />
+
+      {/* Milestone days */}
+      <MonthMilestones month={month} />
+    </div>
+  );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <div style={{
+      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+      color: 'var(--text-muted)', textTransform: 'uppercase',
+      letterSpacing: '0.08em', marginBottom: 10, paddingLeft: 2,
+    }}>{children}</div>
+  );
+}
+
+function SummaryCard({ label, value, sub }) {
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 12,
+      padding: '14px 18px',
+    }}>
+      <div style={{
+        fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+        color: 'var(--text-muted)', textTransform: 'uppercase',
+        letterSpacing: '0.06em', marginBottom: 8,
+      }}>{label}</div>
+      <div style={{
+        fontFamily: 'Instrument Serif, serif', fontSize: 36,
+        lineHeight: 1, color: 'var(--text)',
+        fontVariantNumeric: 'tabular-nums',
+      }}>{value}</div>
+      <div style={{
+        marginTop: 4,
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+        color: 'var(--text-muted)',
+      }}>{sub}</div>
+    </div>
+  );
+}
+
+Object.assign(window, { OverviewView });
+
+</script>
+
+<script type="text/babel">
+// app.jsx — Osmin app shell + stats + month milestones
+
+const { useState, useMemo, useEffect, useRef } = React;
+
+// ── Persistence ──────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'osmin_v1';
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Basic sanity check
+    if (!Array.isArray(parsed.months) || parsed.months.length === 0) return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveState(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    // Storage full or unavailable — fail silently
+  }
+}
+
+function Logo() {
+  return (
+    <img
+      src="logo.png"
+      alt="Osmin"
+      style={{
+        height: 26,
+        width: 'auto',
+        display: 'block',
+        filter: 'brightness(0) invert(1) opacity(0.88)',
+      }}
+    />
+  );
+}
+
+function TrafficLights() {
+  const dot = (c) => (
+    <div style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
+  );
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      {dot('#ff5f57')}{dot('#febc2e')}{dot('#28c840')}
+    </div>
+  );
+}
+
+function NewMonthPicker({ suggested, months, onConfirm, onCancel }) {
+  const [year, setYear] = React.useState(suggested.year);
+  const [monthIdx, setMonthIdx] = React.useState(suggested.month);
+
+  return (
+    <div style={{
+      margin: '4px 0',
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 10,
+      overflow: 'hidden',
+    }}>
+      {/* year stepper */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '8px 10px',
+        borderBottom: '1px solid var(--line-soft)',
+      }}>
+        <button
+          onClick={() => setYear(y => y - 1)}
+          style={{
+            width: 22, height: 22, borderRadius: 6,
+            border: '1px solid var(--line)', background: 'var(--surface-alt)',
+            color: 'var(--text-soft)', cursor: 'pointer', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, lineHeight: 1,
+          }}
+        >‹</button>
+        <span style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600,
+          color: 'var(--text)', fontVariantNumeric: 'tabular-nums',
+        }}>{year}</span>
+        <button
+          onClick={() => setYear(y => y + 1)}
+          style={{
+            width: 22, height: 22, borderRadius: 6,
+            border: '1px solid var(--line)', background: 'var(--surface-alt)',
+            color: 'var(--text-soft)', cursor: 'pointer', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, lineHeight: 1,
+          }}
+        >›</button>
+      </div>
+
+      {/* month grid 4×3 */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 3, padding: '8px',
+      }}>
+        {MONTHS_ES.map((name, i) => {
+          const sel = i === monthIdx;
+          const alreadyExists = months.some(m => m.year === year && m.month === i);
+          return (
+            <button
+              key={i}
+              onClick={() => !alreadyExists && setMonthIdx(i)}
+              title={alreadyExists ? 'Ya existe este mes' : name}
+              style={{
+                padding: '5px 2px', borderRadius: 6,
+                border: sel ? '1.5px solid var(--accent)' : '1px solid transparent',
+                background: sel ? `color-mix(in oklab, var(--accent) 14%, var(--surface))` : 'transparent',
+                cursor: alreadyExists ? 'not-allowed' : 'pointer',
+                fontFamily: 'Inter, sans-serif', fontSize: 10.5, fontWeight: sel ? 600 : 500,
+                color: alreadyExists ? 'var(--text-muted)' : sel ? 'var(--text)' : 'var(--text-soft)',
+                opacity: alreadyExists ? 0.4 : 1,
+                textAlign: 'center',
+              }}
+            >{name.slice(0, 3)}</button>
+          );
+        })}
+      </div>
+
+      {/* actions */}
+      <div style={{
+        display: 'flex', gap: 6, padding: '0 8px 8px',
+      }}>
+        <button
+          onClick={onCancel}
+          style={{
+            flex: 1, height: 26, borderRadius: 7,
+            border: '1px solid var(--line)', background: 'transparent',
+            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            fontSize: 11.5, fontWeight: 500, color: 'var(--text-muted)',
+          }}
+        >Cancelar</button>
+        <button
+          onClick={() => onConfirm(year, monthIdx)}
+          style={{
+            flex: 1, height: 26, borderRadius: 7,
+            border: 'none', background: 'var(--accent)',
+            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            fontSize: 11.5, fontWeight: 600, color: '#fff',
+          }}
+        >Crear</button>
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, view, setView, onOpenAccount }) {
+  const [hoveredIdx, setHoveredIdx] = React.useState(null);
+  const [picker, setPicker] = React.useState(null); // null | { year, month }
+  const [showTip, setShowTip] = React.useState(() => !localStorage.getItem('osmin_tip_dismissed'));
+  const month = months[activeIdx];
+  const userEmail = React.useMemo(() => localStorage.getItem('osmin_user_email') || 'usuario', []);
+  const userInitial = userEmail[0].toUpperCase();
+
+  const dismissTip = () => {
+    localStorage.setItem('osmin_tip_dismissed', '1');
+    setShowTip(false);
+  };
+
+  const openPicker = () => {
+    const last = months[months.length - 1];
+    let m = last.month + 1, y = last.year;
+    if (m > 11) { m = 0; y++; }
+    // skip months that already exist
+    while (months.some(mo => mo.year === y && mo.month === m)) {
+      m++; if (m > 11) { m = 0; y++; }
+    }
+    setPicker({ year: y, month: m });
+  };
+
+  const item = (id, label, count) => {
+    const sel = view === id;
+    return (
+      <button
+        key={id}
+        onClick={() => setView(id)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 8, padding: '6px 10px', borderRadius: 7,
+          border: 'none', cursor: 'pointer', textAlign: 'left',
+          background: sel ? 'var(--sidebar-sel)' : 'transparent',
+          color: sel ? 'var(--text)' : 'var(--text-soft)',
+          fontFamily: 'Inter, sans-serif', fontSize: 13,
+          fontWeight: sel ? 600 : 500,
+        }}
+      >
+        <span>{label}</span>
+        {count !== undefined && (
+          <span style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 10.5, color: 'var(--text-muted)',
+            fontVariantNumeric: 'tabular-nums',
+          }}>{count}</span>
+        )}
+      </button>
+    );
+  };
+
+  const sectionTitle = (t) => (
+    <div style={{
+      fontFamily: 'Inter, sans-serif', fontSize: 10.5, fontWeight: 600,
+      color: 'var(--text-muted)', textTransform: 'uppercase',
+      letterSpacing: '0.08em', padding: '14px 10px 6px',
+    }}>{t}</div>
+  );
+
+  return (
+    <aside style={{
+      width: 224, flexShrink: 0,
+      background: 'var(--sidebar)', borderRight: '1px solid var(--line)',
+      display: 'flex', flexDirection: 'column',
+      padding: '0 10px 14px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 10px 16px' }}>
+        <TrafficLights />
+        <Logo />
+      </div>
+
+      {sectionTitle('Vista')}
+      {item('month', 'Mes actual')}
+      {item('year', `Año ${month.year}`)}
+      {item('habits', 'Hábitos', month.habits.length)}
+      {item('stats', 'Estadísticas')}
+
+      {sectionTitle('Meses')}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {months.map((m, i) => {
+          const sel = i === activeIdx;
+          const hovered = hoveredIdx === i;
+          return (
+            <div
+              key={`${m.year}-${m.month}`}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+              style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
+            >
+              <button
+                onClick={() => setActiveIdx(i)}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '5px 10px', paddingRight: hovered && months.length > 1 ? 30 : 10,
+                  borderRadius: 7,
+                  border: 'none', cursor: 'pointer', textAlign: 'left',
+                  background: sel ? 'var(--sidebar-sel)' : 'transparent',
+                  fontFamily: 'Inter, sans-serif', fontSize: 12.5,
+                  color: sel ? 'var(--text)' : 'var(--text-soft)',
+                  fontWeight: sel ? 600 : 500,
+                }}
+              >
+                <span>{MONTHS_ES[m.month]} '{String(m.year).slice(2)}</span>
+                {!hovered && (
+                  <span style={{
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 10, color: 'var(--text-muted)',
+                  }}>{m.days.length}</span>
+                )}
+              </button>
+              {hovered && months.length > 1 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteMonth(i); }}
+                  title="Eliminar mes"
+                  style={{
+                    position: 'absolute', right: 8,
+                    width: 18, height: 18, borderRadius: 5,
+                    border: 'none', background: 'transparent',
+                    cursor: 'pointer', padding: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {picker ? (
+          <NewMonthPicker
+            suggested={picker}
+            months={months}
+            onConfirm={(y, m) => { addMonth(y, m); setPicker(null); }}
+            onCancel={() => setPicker(null)}
+          />
+        ) : (
+          <button
+            onClick={openPicker}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 10px', borderRadius: 7, marginTop: 2,
+              border: 'none', cursor: 'pointer', textAlign: 'left',
+              background: 'transparent',
+              fontFamily: 'Inter, sans-serif', fontSize: 12,
+              color: 'var(--text-muted)', fontWeight: 500,
+              width: '100%',
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Nuevo mes
+          </button>
+        )}
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      {showTip && (
+        <div style={{
+          padding: '11px 12px',
+          border: '1px solid var(--line)',
+          borderRadius: 10,
+          background: 'var(--surface)',
+          fontFamily: 'Inter, sans-serif', fontSize: 11.5,
+          color: 'var(--text-muted)', lineHeight: 1.45,
+          position: 'relative',
+          marginBottom: 8,
+        }}>
+          <button
+            onClick={dismissTip}
+            title="Cerrar"
+            style={{
+              position: 'absolute', top: 8, right: 8,
+              width: 18, height: 18,
+              border: 'none', background: 'transparent',
+              cursor: 'pointer', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-muted)', borderRadius: 4,
+            }}
+          >
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M1 1l7 7M8 1l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4, paddingRight: 18 }}>
+            Tip
+          </div>
+          Click en un día para cambiar entre laborable, festivo y vacaciones.
+        </div>
+      )}
+
+      <button
+        onClick={onOpenAccount}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 9,
+          padding: '8px 10px', borderRadius: 9,
+          border: '1px solid var(--line)',
+          background: 'var(--surface)',
+          cursor: 'pointer', width: '100%',
+          transition: 'background 140ms, border-color 140ms',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'var(--surface-alt)';
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'var(--surface)';
+          e.currentTarget.style.borderColor = 'var(--line)';
+        }}
+      >
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+          background: 'linear-gradient(135deg, #4ECDC4, #1F8A5B)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 700, color: '#fff',
+        }}>
+          {userInitial}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+          <div style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            color: 'var(--text)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {userEmail}
+          </div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, color: 'var(--text-muted)' }}>
+            Acceso anticipado
+          </div>
+        </div>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--text-muted)" strokeWidth="1.4" strokeLinecap="round">
+          <path d="M4.5 2l4 4-4 4"/>
+        </svg>
+      </button>
+    </aside>
+  );
+}
+
+function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setViewMode }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
+      padding: '24px 28px 18px',
+      borderBottom: '1px solid var(--line)',
+    }}>
+      <div>
+        <div style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 11.5, fontWeight: 600,
+          color: 'var(--text-muted)', textTransform: 'uppercase',
+          letterSpacing: '0.1em', marginBottom: 6,
+        }}>
+          Mes activo
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+          <button onClick={onPrev} className="month-nav">‹</button>
+          <h1 style={{
+            margin: 0,
+            fontFamily: 'Instrument Serif, serif',
+            fontWeight: 400, fontSize: 44, lineHeight: 1,
+            color: 'var(--text)', letterSpacing: '-0.01em',
+          }}>
+            {MONTHS_ES[month.month]}
+            <span style={{
+              color: 'var(--text-muted)', marginLeft: 12,
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 22,
+              letterSpacing: 0,
+            }}>'{String(month.year).slice(2)}</span>
+          </h1>
+          <button onClick={onNext} className="month-nav">›</button>
+          <button
+            onClick={() => setViewMode(viewMode === 'overview' ? 'month' : 'overview')}
+            className="overview-btn"
+            data-active={viewMode === 'overview'}
+            title="Vista de highlights del mes"
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14"
+                 fill={viewMode === 'overview' ? 'var(--accent)' : 'none'}
+                 stroke={viewMode === 'overview' ? 'var(--accent)' : 'currentColor'}
+                 strokeWidth="1.5" strokeLinejoin="round">
+              <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z" />
+            </svg>
+            <span>Highlights</span>
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', visibility: viewMode === 'overview' ? 'hidden' : 'visible' }}>
+        <Legend />
+        <div style={{
+          display: 'inline-flex', padding: 3,
+          background: 'var(--surface-alt)',
+          border: '1px solid var(--line)', borderRadius: 9,
+        }}>
+          {[
+            { id: 'table',  label: 'Tabla' },
+            { id: 'journal',label: 'Bitácora' },
+          ].map(o => (
+            <button
+              key={o.id}
+              onClick={() => setLayout(o.id)}
+              style={{
+                padding: '6px 14px',
+                background: layout === o.id ? 'var(--surface)' : 'transparent',
+                border: 'none', cursor: 'pointer',
+                borderRadius: 7,
+                fontFamily: 'Inter, sans-serif', fontSize: 12,
+                fontWeight: layout === o.id ? 600 : 500,
+                color: layout === o.id ? 'var(--text)' : 'var(--text-muted)',
+                boxShadow: layout === o.id ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >{o.label}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Legend() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      fontFamily: 'Inter, sans-serif', fontSize: 11.5,
+      color: 'var(--text-soft)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ width: 12, height: 8, borderRadius: 2, background: 'var(--c-festivo)' }} />
+        Festivo
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ width: 12, height: 8, borderRadius: 2, background: 'var(--c-vacaciones)' }} />
+        Vacaciones
+      </div>
+    </div>
+  );
+}
+
+function StatTile({ habit, month }) {
+  const stats = habitStats(month, habit);
+  const streak = habitStreak(month, habit);
+  return (
+    <div style={{
+      flex: 1, minWidth: 0,
+      background: 'var(--surface)',
+      border: '1px solid var(--line)',
+      borderRadius: 12,
+      padding: '14px 16px',
+      display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: habit.color }} />
+        <div style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+          color: 'var(--text)', letterSpacing: '0.01em',
+        }}>{habit.label}</div>
+        <div style={{ flex: 1 }} />
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5,
+          color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums',
+        }}>
+          {habit.type === 'numeric' ? `meta ${habit.goal.toLocaleString('es')}` : 'check'}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div style={{
+          fontFamily: 'Instrument Serif, serif', fontSize: 32,
+          lineHeight: 1, color: 'var(--text)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {habit.type === 'numeric' ? stats.avg.toLocaleString('es') : stats.done}
+        </div>
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+          color: 'var(--text-muted)',
+        }}>
+          {habit.type === 'numeric' ? 'media/día' : `de ${stats.total}`}
+        </div>
+      </div>
+
+      {/* progress bar */}
+      <div style={{
+        height: 4, borderRadius: 2,
+        background: 'var(--line)', overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${stats.pct}%`, height: '100%', background: habit.color,
+        }} />
+      </div>
+
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5,
+        color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums',
+      }}>
+        <span>{stats.pct}% cumplido</span>
+        <span>racha {streak}d</span>
+      </div>
+    </div>
+  );
+}
+
+function MilestonesStrip({ month }) {
+  const ms = month.days.filter(d => d.milestone);
+  if (ms.length === 0) return null;
+  return (
+    <div style={{
+      background: 'var(--surface-alt)',
+      border: '1px solid var(--line)',
+      borderRadius: 12,
+      padding: '12px 16px',
+      display: 'flex', gap: 14, alignItems: 'center',
+    }}>
+      <div style={{
+        fontFamily: 'Inter, sans-serif', fontSize: 10.5, fontWeight: 600,
+        color: 'var(--text-muted)', textTransform: 'uppercase',
+        letterSpacing: '0.08em', flexShrink: 0,
+      }}>
+        Hitos del mes
+      </div>
+      <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--line)' }} />
+      <div style={{ display: 'flex', gap: 18, flex: 1, overflow: 'hidden', flexWrap: 'wrap' }}>
+        {ms.map(d => (
+          <div key={d.day} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <svg width="11" height="11" viewBox="0 0 14 14" fill="var(--accent)">
+              <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z"/>
+            </svg>
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-muted)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>{String(d.day).padStart(2,'0')}</span>
+            <span style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: 'var(--text)',
+              fontWeight: 500,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              maxWidth: 240,
+            }}>{d.highlight}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AccountPanel({ onClose }) {
+  const userEmail = localStorage.getItem('osmin_user_email') || 'usuario';
+  const userInitial = userEmail[0].toUpperCase();
+
+  React.useEffect(() => {
+    if (!document.getElementById('osmin-ac-styles')) {
+      const s = document.createElement('style');
+      s.id = 'osmin-ac-styles';
+      s.textContent = `
+        @keyframes acOverlayIn { from { opacity:0 } to { opacity:1 } }
+        @keyframes acPanelIn   { from { transform:translateX(100%) } to { transform:translateX(0) } }
+      `;
+      document.head.appendChild(s);
+    }
+  }, []);
+
+  const joinFormatted = React.useMemo(() => {
+    try {
+      const raw = localStorage.getItem('osmin_join_date') || new Date().toISOString();
+      return new Date(raw).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch { return '—'; }
+  }, []);
+
+  const stats = React.useMemo(() => {
+    try {
+      const raw = localStorage.getItem('osmin_v1');
+      if (!raw) return { months: 0, habits: 0, days: 0, pct: 0 };
+      const data = JSON.parse(raw);
+      const totalMonths = data.months?.length || 0;
+      const habitSet = new Set();
+      data.months?.forEach(m => m.habits?.forEach(h => habitSet.add(h.label)));
+      let totalDays = 0, doneDays = 0;
+      data.months?.forEach(m => {
+        m.days?.forEach(d => {
+          if (d.type === 'festivo' || d.type === 'vacaciones') return;
+          totalDays++;
+          const hasAny = m.habits?.some(h => {
+            const v = d.habits?.[h.id];
+            return h.type === 'check' ? v === 1 : (v || 0) >= (h.goal || 1);
+          });
+          if (hasAny) doneDays++;
+        });
+      });
+      return { months: totalMonths, habits: habitSet.size, days: doneDays, pct: totalDays ? Math.round((doneDays / totalDays) * 100) : 0 };
+    } catch { return { months: 0, habits: 0, days: 0, pct: 0 }; }
+  }, []);
+
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [toast, setToast] = React.useState('');
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+
+  const handleExport = () => {
+    try {
+      const blob = new Blob([localStorage.getItem('osmin_v1') || '{}'], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `osmin-datos-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click(); URL.revokeObjectURL(url);
+      showToast('Datos exportados correctamente');
+    } catch { showToast('Error al exportar'); }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('osmin_user_email');
+    window.location.href = 'landing-a.html';
+  };
+
+  const handleDelete = () => {
+    ['osmin_v1', 'osmin_user_email', 'osmin_tip_dismissed', 'osmin_join_date'].forEach(k => localStorage.removeItem(k));
+    window.location.href = 'landing-a.html';
+  };
+
+  const FEATURES = ['Seguimiento de hábitos', 'Bitácora diaria', 'Estadísticas del mes', 'Vista de highlights', 'Exportación de datos', 'Acceso anticipado'];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0, zIndex: 40,
+        background: 'rgba(0,0,0,0.48)',
+        backdropFilter: 'blur(3px)',
+        animation: 'acOverlayIn 200ms ease forwards',
+      }} />
+
+      {/* Drawer */}
+      <div style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 50,
+        width: 400, maxWidth: '95vw',
+        background: 'var(--bg-app)',
+        borderLeft: '1px solid var(--line)',
+        display: 'flex', flexDirection: 'column',
+        overflowY: 'auto',
+        boxShadow: '-20px 0 60px rgba(0,0,0,.4)',
+        animation: 'acPanelIn 260ms cubic-bezier(.3,.7,.4,1) forwards',
+      }}>
+
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px', borderBottom: '1px solid var(--line)',
+          position: 'sticky', top: 0, background: 'var(--bg-app)', zIndex: 2,
+        }}>
+          <img src="logo.png" alt="Osmin" style={{ height: 22, filter: 'brightness(0) invert(1) opacity(.88)' }} />
+          <button onClick={onClose} style={{
+            width: 30, height: 30, border: '1px solid var(--line)',
+            background: 'transparent', borderRadius: 8,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--text-muted)',
+          }}>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+              <path d="M1 1l9 9M10 1L1 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Profile */}
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14,
+            padding: '22px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{
+              width: 60, height: 60, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #4ECDC4 0%, #1F8A5B 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 24, fontWeight: 700, color: '#fff',
+            }}>{userInitial}</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{userEmail}</div>
+              <div style={{ marginTop: 6 }}>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, fontWeight: 600,
+                  color: '#4ECDC4', background: 'rgba(78,205,196,.1)',
+                  border: '1px solid rgba(78,205,196,.25)', borderRadius: 5,
+                  padding: '2px 8px', letterSpacing: '.05em',
+                }}>ACCESO ANTICIPADO</span>
+              </div>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)', marginTop: 7 }}>
+                Miembro desde {joinFormatted}
+              </div>
+            </div>
+          </div>
+
+          {/* Plan */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>Plan actual</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-muted)', textDecoration: 'line-through' }}>5€/mes</span>
+                <span style={{ fontFamily: 'Instrument Serif, serif', fontSize: 20, color: 'var(--text)' }}>Gratis</span>
+              </div>
+            </div>
+            {FEATURES.map(f => (
+              <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: '1px solid var(--line-soft)', fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: 'var(--text-soft)' }}>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M2 7l3 3 6-6" stroke="#1F8A5B" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {f}
+              </div>
+            ))}
+            <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 7, background: 'rgba(42,111,219,.07)', border: '1px solid rgba(42,111,219,.15)', fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-muted)' }}>
+              El precio puede cambiar cuando salgamos de acceso anticipado.
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {[
+              { label: 'Meses', value: stats.months },
+              { label: 'Hábitos únicos', value: stats.habits },
+              { label: 'Días completados', value: stats.days },
+              { label: 'Cumplimiento', value: `${stats.pct}%` },
+            ].map(s => (
+              <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10, padding: '14px 16px' }}>
+                <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 26, color: 'var(--text)', lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Actions */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+            <button onClick={handleExport} style={{
+              width: '100%', padding: '14px 20px', border: 'none',
+              borderBottom: '1px solid var(--line-soft)', background: 'transparent', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
+              fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'var(--text)', transition: 'background 120ms',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-alt)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M7.5 1.5v8M4.5 6.5l3 3 3-3M2.5 11v1.5a1 1 0 001 1h8a1 1 0 001-1V11"/>
+              </svg>
+              Exportar mis datos
+            </button>
+            <button onClick={handleLogout} style={{
+              width: '100%', padding: '14px 20px', border: 'none',
+              background: 'transparent', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
+              fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#E05252', transition: 'background 120ms',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(224,82,82,.07)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M6 2H3.5a1 1 0 00-1 1v8a1 1 0 001 1H6M10 10.5l3-3-3-3M5 7.5h8"/>
+              </svg>
+              Cerrar sesión
+            </button>
+          </div>
+
+          {/* Danger */}
+          <div style={{ background: 'rgba(224,82,82,.04)', border: '1px solid rgba(224,82,82,.15)', borderRadius: 14, padding: '16px 20px' }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#E05252', marginBottom: 10, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+              Zona de peligro
+            </div>
+            {!confirmDelete ? (
+              <button onClick={() => setConfirmDelete(true)} style={{
+                padding: '7px 16px', borderRadius: 8,
+                border: '1px solid rgba(224,82,82,.3)', background: 'transparent',
+                cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#E05252',
+              }}>
+                Eliminar cuenta y datos
+              </button>
+            ) : (
+              <div>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+                  Esta acción eliminará todos tus datos locales. ¿Continuar?
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setConfirmDelete(false)} style={{
+                    flex: 1, padding: '8px', borderRadius: 7,
+                    border: '1px solid var(--line)', background: 'transparent',
+                    cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--text-muted)',
+                  }}>Cancelar</button>
+                  <button onClick={handleDelete} style={{
+                    flex: 1, padding: '8px', borderRadius: 7,
+                    border: 'none', background: '#E05252',
+                    cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#fff',
+                  }}>Sí, eliminar</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Toast */}
+        {toast && (
+          <div style={{
+            position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+            background: 'var(--surface)', border: '1px solid var(--line)',
+            padding: '10px 20px', borderRadius: 10, zIndex: 60,
+            fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'var(--text)',
+            boxShadow: '0 8px 24px rgba(0,0,0,.4)',
+            animation: 'acOverlayIn 180ms ease',
+          }}>{toast}</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function App() {
+  // Load persisted state once at startup
+  const saved = useMemo(() => loadSaved(), []);
+
+  const [months, setMonths] = useState(() =>
+    saved?.months?.length ? saved.months : [buildSampleMonth()]
+  );
+  const [activeIdx, setActiveIdx] = useState(() => {
+    const idx = saved?.activeIdx ?? 0;
+    const months = saved?.months;
+    return months ? Math.min(idx, months.length - 1) : 0;
+  });
+  const [view, setView] = useState('month');
+  const [layout, setLayoutState] = useState(() => saved?.layout ?? 'table');
+  const [viewMode, setViewMode] = useState('month'); // 'month' | 'overview' — intentionally not persisted
+  const [showAccount, setShowAccount] = useState(false);
+
+  const month = months[activeIdx];
+  const setMonth = (updater) => {
+    setMonths(ms => {
+      const next = ms.slice();
+      next[activeIdx] = typeof updater === 'function' ? updater(ms[activeIdx]) : updater;
+      return next;
+    });
+  };
+
+  const addMonth = (year, monthIdx) => {
+    const last = months[months.length - 1];
+    const newIdx = months.length;
+    setMonths(ms => [...ms, buildBlankMonth(year, monthIdx, last.habits)]);
+    setActiveIdx(newIdx);
+    setViewMode('month');
+  };
+
+  const deleteMonth = (idx) => {
+    if (months.length <= 1) return;
+    setMonths(ms => ms.filter((_, i) => i !== idx));
+    setActiveIdx(ai => {
+      if (idx < ai) return ai - 1;
+      if (idx === ai) return Math.max(0, idx - 1);
+      return ai;
+    });
+  };
+
+  const twkDefaults = window.__OSMIN_TWEAK_DEFAULTS || { theme: 'light', density: 'comfy', accent: '#C97A2A' };
+  const [tweaks, setTweak] = window.useTweaks({ ...twkDefaults, ...(saved?.tweaks || {}) });
+
+  // Apply theme + density to root via data attrs
+  useEffect(() => {
+    document.documentElement.dataset.theme = tweaks.theme;
+    document.documentElement.dataset.density = tweaks.density;
+    document.documentElement.style.setProperty('--accent', tweaks.accent);
+  }, [tweaks.theme, tweaks.density, tweaks.accent]);
+
+  // Persist all state to localStorage on every relevant change
+  // Skip the very first render (saved state is already in storage)
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    saveState({ months, activeIdx, layout, tweaks });
+  }, [months, activeIdx, layout, tweaks]);
+
+  return (
+    <div style={{
+      width: '100%', height: '100vh',
+      display: 'flex', overflow: 'hidden',
+      background: 'var(--bg-app)',
+    }}>
+      <Sidebar
+        months={months} activeIdx={activeIdx}
+        setActiveIdx={(i) => { setActiveIdx(i); setViewMode('month'); }}
+        addMonth={addMonth} deleteMonth={deleteMonth}
+        view={view} setView={setView}
+        onOpenAccount={() => setShowAccount(true)}
+      />
+
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <MonthHeader
+          month={month}
+          layout={layout}
+          setLayout={setLayoutState}
+          onPrev={() => setActiveIdx(i => Math.max(0, i - 1))}
+          onNext={() => setActiveIdx(i => Math.min(months.length - 1, i + 1))}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+        />
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 28px 80px' }}>
+          {viewMode === 'overview' ? (
+            <window.OverviewView month={month} setMonth={setMonth} />
+          ) : layout === 'table' ? (
+            <TableLayout month={month} setMonth={setMonth} density={tweaks.density} />
+          ) : (
+            <JournalLayout month={month} setMonth={setMonth} density={tweaks.density} />
+          )}
+        </div>
+      </main>
+
+      {/* Tweaks panel */}
+      {window.TweaksPanel && (
+        <window.TweaksPanel title="Tweaks">
+          <window.TweakSection label="Apariencia" />
+          <window.TweakRadio
+            label="Tema"
+            value={tweaks.theme}
+            onChange={v => setTweak('theme', v)}
+            options={[{ value: 'light', label: 'Claro' }, { value: 'dark', label: 'Oscuro' }]}
+          />
+          <window.TweakRadio
+            label="Densidad"
+            value={tweaks.density}
+            onChange={v => setTweak('density', v)}
+            options={[{ value: 'comfy', label: 'Cómoda' }, { value: 'compact', label: 'Compacta' }]}
+          />
+          <window.TweakColor
+            label="Acento"
+            value={tweaks.accent}
+            onChange={v => setTweak('accent', v)}
+            options={['#C97A2A', '#2A6FDB', '#1F8A5B', '#7C5CD0']}
+          />
+          <window.TweakSection label="Layout" />
+          <window.TweakRadio
+            label="Vista del mes"
+            value={layout}
+            onChange={setLayoutState}
+            options={[{ value: 'table', label: 'Tabla' }, { value: 'journal', label: 'Bitácora' }]}
+          />
+        </window.TweaksPanel>
+      )}
+
+      {showAccount && <AccountPanel onClose={() => setShowAccount(false)} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+</script>
 </body>
 </html>
