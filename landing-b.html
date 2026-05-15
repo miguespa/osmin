@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Osmin — Pequeños hábitos. Historias reales.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F5F2EC;
+  --surface: #FBFAF7;
+  --surface-alt: #F2EFE8;
+  --text: #1a1916;
+  --text-soft: #4a4842;
+  --text-muted: #8a8780;
+  --line: #E3DED4;
+  --line-soft: #ECE7DC;
+  --accent: #C97A2A;
+  --green: #1F8A5B;
+  --purple: #7C5CD0;
+  --blue: #2A6FDB;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  background-image:
+    linear-gradient(rgba(0,0,0,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,.018) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* NAV */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  height: 54px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 48px;
+  background: rgba(245,242,236,.88);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+.logo-mark {
+  width: 24px; height: 24px; border-radius: 7px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Instrument Serif', serif; font-size: 17px;
+  color: #fff; padding-top: 2px; flex-shrink: 0;
+}
+.logo-name { font-family: 'Instrument Serif', serif; font-size: 19px; color: var(--text); letter-spacing: .01em; }
+.nav-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  transition: background 150ms, transform 150ms;
+}
+.nav-btn:hover { background: #a8631f; transform: translateY(-1px); }
+
+/* HERO */
+.hero {
+  min-height: calc(100vh - 54px);
+  display: grid; grid-template-columns: 1fr 1fr;
+  align-items: center; gap: 60px;
+  padding: 60px 48px 60px;
+  max-width: 1100px; margin: 0 auto;
+}
+.hero-left { display: flex; flex-direction: column; align-items: flex-start; }
+.eyebrow {
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+  color: var(--accent); letter-spacing: .01em;
+  margin-bottom: 20px;
+  animation: fuIn .5s ease forwards .1s; opacity: 0;
+}
+.hero h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(40px, 5.5vw, 64px);
+  font-weight: 400; line-height: 1.1; letter-spacing: -.015em;
+  color: var(--text); margin-bottom: 22px;
+  animation: fuIn .5s ease forwards .2s; opacity: 0;
+}
+.hero h1 em { font-style: italic; color: var(--text-soft); }
+.hero-sub {
+  font-size: 17px; color: var(--text-soft);
+  max-width: 400px; line-height: 1.65; margin-bottom: 36px;
+  animation: fuIn .5s ease forwards .3s; opacity: 0;
+}
+.btn-p {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 14px 24px; background: var(--accent); color: #fff;
+  border: none; border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  margin-bottom: 18px;
+  transition: background 150ms, transform 150ms, box-shadow 150ms;
+  animation: fuIn .5s ease forwards .4s; opacity: 0;
+}
+.btn-p:hover { background: #a8631f; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(201,122,42,.3); }
+.hero-badges {
+  display: flex; gap: 16px;
+  font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 500;
+  color: var(--text-muted);
+  animation: fuIn .5s ease forwards .5s; opacity: 0;
+}
+.badge-item { display: flex; align-items: center; gap: 5px; }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: .6; }
+
+/* JOURNAL CARD (hero right) */
+.hero-right {
+  display: flex; align-items: center; justify-content: center;
+  animation: cardIn .7s cubic-bezier(.3,.7,.4,1) forwards .3s; opacity: 0;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: rotate(-4deg) translateY(24px); }
+  to   { opacity: 1; transform: rotate(-1.8deg) translateY(0); }
+}
+.jcard {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 18px; padding: 28px;
+  width: 300px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.09), 0 1px 0 rgba(255,255,255,.8) inset;
+  transform: rotate(-1.8deg);
+}
+.jcard-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+.jcard-date {
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 500;
+  color: var(--text-muted); letter-spacing: .04em; text-transform: uppercase;
+}
+.jcard-star svg { display: block; }
+.jcard-divider { height: 1px; background: var(--line); margin-bottom: 14px; }
+.jcard-highlight {
+  font-family: 'Instrument Serif', serif; font-size: 20px;
+  color: var(--text); margin-bottom: 22px; line-height: 1.2;
+}
+.jcard-habits { display: flex; flex-direction: column; gap: 11px; }
+.jhabit { display: flex; align-items: center; gap: 10px; }
+.jhcheck {
+  width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0;
+  border: 1.5px solid var(--c, #ccc);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 200ms;
+}
+.jhcheck.done { background: var(--c); border-color: var(--c); }
+.jchk-svg { width: 10px; height: 10px; }
+.jchk-path {
+  stroke-dasharray: 14; stroke-dashoffset: 14;
+  transition: stroke-dashoffset .35s cubic-bezier(.3,.7,.4,1);
+}
+.jhcheck.done .jchk-path { stroke-dashoffset: 0; }
+.jhname { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 500; color: var(--text-soft); }
+.jhval { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); margin-left: auto; }
+.jhval.hit { color: var(--blue); }
+
+/* STEPS */
+.steps-section { padding: 80px 48px; }
+.steps-inner { max-width: 840px; margin: 0 auto; }
+.steps-lbl {
+  text-align: center; margin-bottom: 48px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
+  color: var(--text-muted); letter-spacing: .12em; text-transform: uppercase;
+}
+.steps-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 0; position: relative;
+}
+.steps-grid::before {
+  content: ''; position: absolute; top: 20px;
+  left: calc(100% / 6 + 10px); right: calc(100% / 6 + 10px);
+  height: 1px;
+  background: linear-gradient(to right, var(--accent) 0%, var(--line) 50%, var(--accent) 100%);
+  opacity: .4;
+}
+.step { text-align: center; padding: 0 24px; }
+.step-num {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--surface); border: 1.5px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600;
+  color: var(--accent); margin: 0 auto 18px;
+  position: relative; z-index: 1;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.step-title { font-family: 'Instrument Serif', serif; font-size: 19px; color: var(--text); margin-bottom: 8px; }
+.step-desc { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+/* FEATURES */
+.feat-section { padding: 80px 48px; background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.feat-inner { max-width: 940px; margin: 0 auto; }
+.feat-lbl {
+  text-align: center; margin-bottom: 48px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
+  color: var(--text-muted); letter-spacing: .12em; text-transform: uppercase;
+}
+.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.feat-card {
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 16px; padding: 26px; cursor: default;
+  transition: border-color 200ms, transform 200ms, box-shadow 200ms;
+}
+.feat-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,.07); }
+.feat-ico {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--surface-alt); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+}
+.feat-title { font-family: 'Instrument Serif', serif; font-size: 18px; color: var(--text); margin-bottom: 8px; }
+.feat-desc { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-muted); line-height: 1.65; }
+
+/* HABITS MINI PREVIEW */
+.habit-dots { display: flex; gap: 4px; margin-top: 14px; flex-wrap: wrap; }
+.hdot {
+  width: 10px; height: 10px; border-radius: 3px;
+  transition: transform 300ms;
+}
+.feat-card:hover .hdot { transform: scale(1.15); }
+
+/* PRICING */
+.price-section { padding: 80px 48px; display: flex; flex-direction: column; align-items: center; }
+.price-card {
+  background: var(--surface); border: 2px solid var(--line);
+  border-radius: 24px; padding: 52px 56px;
+  max-width: 480px; width: 100%; text-align: center; position: relative; overflow: hidden;
+}
+.price-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+.price-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(201,122,42,.1); border: 1px solid rgba(201,122,42,.25);
+  border-radius: 99px; padding: 5px 14px;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  color: var(--accent); margin-bottom: 28px;
+}
+.price-old {
+  font-family: 'JetBrains Mono', monospace; font-size: 18px; color: var(--text-muted);
+  text-decoration: line-through; text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(138,135,128,.7); margin-bottom: 8px;
+}
+.price-main {
+  font-family: 'Instrument Serif', serif; font-size: 72px; line-height: 1;
+  color: var(--text); letter-spacing: -.02em; margin-bottom: 14px;
+}
+.price-note { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 36px; }
+.price-note strong { color: var(--text-soft); }
+.price-btn {
+  display: block; width: 100%; padding: 15px;
+  background: var(--accent); color: #fff; border: none; border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  transition: background 150ms, transform 150ms;
+  margin-bottom: 16px;
+}
+.price-btn:hover { background: #a8631f; transform: translateY(-1px); }
+.price-fine { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted); letter-spacing: .04em; }
+
+/* FOOTER */
+footer {
+  padding: 28px 48px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.footer-copy { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted); }
+
+/* ANIMATIONS */
+.fu { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease; }
+.fu.v { opacity: 1; transform: none; }
+.fu-d1 { transition-delay: 80ms; }
+.fu-d2 { transition-delay: 160ms; }
+.fu-d3 { transition-delay: 240ms; }
+
+@keyframes fuIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 48px; padding: 48px 24px; min-height: auto; padding-top: 60px; }
+  .hero-right { order: -1; }
+  .steps-grid::before { display: none; }
+  .steps-grid { grid-template-columns: 1fr; gap: 32px; }
+  .steps-section, .feat-section, .price-section { padding: 48px 24px; }
+  .feat-grid { grid-template-columns: 1fr; }
+  .price-card { padding: 36px 24px; }
+  footer { padding: 24px; flex-direction: column; gap: 10px; text-align: center; }
+  nav { padding: 0 20px; }
+  .hero h1 { font-size: 40px; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">
+    <div class="logo-mark">O</div>
+    <span class="logo-name">Osmin</span>
+  </a>
+  <a href="#pricing" class="nav-btn">
+    Acceder
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <path d="M2 6h8M6 2.5l3.5 3.5L6 9.5"/>
+    </svg>
+  </a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <p class="eyebrow">Tu compañero de productividad diaria</p>
+    <h1>Pequeños hábitos.<br><em>Historias reales.</em></h1>
+    <p class="hero-sub">Osmin es tu espacio para registrar lo que haces y lo que vives, cada día. Sin apps extra, sin hojas de cálculo.</p>
+    <a href="#pricing" class="btn-p">
+      Empieza gratis hoy
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M2 6.5h9M7 2.5l4 4-4 4"/>
+      </svg>
+    </a>
+    <div class="hero-badges">
+      <span class="badge-item"><span class="badge-dot"></span> Privado</span>
+      <span class="badge-item"><span class="badge-dot"></span> Sin anuncios</span>
+      <span class="badge-item"><span class="badge-dot"></span> Sin fricción</span>
+    </div>
+  </div>
+
+  <!-- Journal Card Mockup -->
+  <div class="hero-right">
+    <div class="jcard" id="jcard">
+      <div class="jcard-top">
+        <span class="jcard-date">Miércoles, 13 mayo</span>
+        <span class="jcard-star">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="#C97A2A">
+            <path d="M6.5 1.5l1.4 2.8 3.1.45-2.25 2.2.53 3.1L6.5 8.6 3.72 10.05l.53-3.1L2 4.75l3.1-.45z"/>
+          </svg>
+        </span>
+      </div>
+      <div class="jcard-divider"></div>
+      <div class="jcard-highlight">Leadership + Black Star</div>
+      <div class="jcard-habits" id="jhabits">
+        <div class="jhabit">
+          <div class="jhcheck" id="jh0" style="--c:#1F8A5B">
+            <svg class="jchk-svg" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path class="jchk-path" d="M1.5 5.5L4 8l4.5-5.5"/>
+            </svg>
+          </div>
+          <span class="jhname">GYM</span>
+        </div>
+        <div class="jhabit">
+          <div class="jhcheck" id="jh1" style="--c:#7C5CD0">
+            <svg class="jchk-svg" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path class="jchk-path" d="M1.5 5.5L4 8l4.5-5.5"/>
+            </svg>
+          </div>
+          <span class="jhname">Lectura</span>
+        </div>
+        <div class="jhabit">
+          <div class="jhcheck" id="jh2" style="--c:#2A6FDB">
+            <svg class="jchk-svg" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path class="jchk-path" d="M1.5 5.5L4 8l4.5-5.5"/>
+            </svg>
+          </div>
+          <span class="jhname">Pasos</span>
+          <span class="jhval hit">10.2k</span>
+        </div>
+        <div class="jhabit">
+          <div class="jhcheck" id="jh3" style="--c:#C97A2A">
+            <svg class="jchk-svg" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path class="jchk-path" d="M1.5 5.5L4 8l4.5-5.5"/>
+            </svg>
+          </div>
+          <span class="jhname">Salir &lt;19h</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STEPS -->
+<section class="steps-section">
+  <div class="steps-inner">
+    <p class="steps-lbl fu">Cómo funciona</p>
+    <div class="steps-grid">
+      <div class="step fu">
+        <div class="step-num">1</div>
+        <div class="step-title">Define tus hábitos</div>
+        <div class="step-desc">Una sola vez. Elige qué quieres mejorar y con qué frecuencia. Numérico o simple check.</div>
+      </div>
+      <div class="step fu fu-d1">
+        <div class="step-num">2</div>
+        <div class="step-title">Marca tu día</div>
+        <div class="step-desc">Cada día, en segundos. Anota también lo que viviste: una cena, un logro, un mal día.</div>
+      </div>
+      <div class="step fu fu-d2">
+        <div class="step-num">3</div>
+        <div class="step-title">Observa el patrón</div>
+        <div class="step-desc">Al final del mes, tus estadísticas, rachas y recuerdos están todos en el mismo lugar.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="feat-section">
+  <div class="feat-inner">
+    <p class="feat-lbl fu">Lo que incluye</p>
+    <div class="feat-grid">
+      <div class="feat-card fu">
+        <div class="feat-ico">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#2A6FDB" stroke-width="1.5" stroke-linecap="round">
+            <rect x="1.5" y="1.5" width="15" height="15" rx="3.5"/>
+            <path d="M1.5 6.5h15M6.5 1.5v15"/>
+          </svg>
+        </div>
+        <div class="feat-title">Tu mes completo</div>
+        <div class="feat-desc">Cada día del mes en una sola tabla. Festivos, vacaciones, hábitos y notas visibles de un vistazo.</div>
+        <div class="habit-dots">
+          <div class="hdot" style="background:#1F8A5B; opacity:.9"></div>
+          <div class="hdot" style="background:#1F8A5B; opacity:.25"></div>
+          <div class="hdot" style="background:#1F8A5B; opacity:.9"></div>
+          <div class="hdot" style="background:#1F8A5B; opacity:.9"></div>
+          <div class="hdot" style="background:#1F8A5B; opacity:.25"></div>
+          <div class="hdot" style="background:#1F8A5B; opacity:.9"></div>
+          <div class="hdot" style="background:#1F8A5B; opacity:.9"></div>
+        </div>
+      </div>
+      <div class="feat-card fu fu-d1">
+        <div class="feat-ico">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7C5CD0" stroke-width="1.5" stroke-linecap="round">
+            <path d="M3.5 2.5h8L15 6v9.5a.5.5 0 0 1-.5.5H3.5a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5z"/>
+            <path d="M11.5 2.5v4H15M6 9.5h6M6 12.5h4"/>
+          </svg>
+        </div>
+        <div class="feat-title">Un diario que importa</div>
+        <div class="feat-desc">Escribe sobre cada día en la misma pantalla donde registras tus hábitos. Sin apps extra, sin cambios de contexto.</div>
+        <div style="margin-top:14px; font-family:'Instrument Serif',serif; font-size:13px; color:var(--text-muted); font-style:italic; line-height:1.5;">"Cena Max hacia Villran + consenso MC ingesta"</div>
+      </div>
+      <div class="feat-card fu fu-d2">
+        <div class="feat-ico">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#C97A2A" stroke-width="1.5" stroke-linecap="round">
+            <path d="M2.5 14L6 9l3 2.5 4-5 3 2.5"/>
+            <path d="M2.5 16h13"/>
+          </svg>
+        </div>
+        <div class="feat-title">Crece sin esfuerzo</div>
+        <div class="feat-desc">Rachas, medias diarias y porcentajes de cumplimiento calculados automáticamente. Sin configurar nada.</div>
+        <div style="margin-top:14px; display:flex; gap:10px; align-items:baseline;">
+          <span style="font-family:'Instrument Serif',serif; font-size:28px; color:var(--text);">76%</span>
+          <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--text-muted);">cumplido · racha 11d</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" class="price-section">
+  <div class="price-card fu">
+    <div class="price-chip">
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="var(--accent)">
+        <path d="M6 1l1.5 3.1 3.5.5-2.5 2.5.6 3.5L6 9.1l-3.1 1.5.6-3.5L1 4.6l3.5-.5z"/>
+      </svg>
+      Acceso anticipado
+    </div>
+    <p class="price-old">5 €/mes</p>
+    <div class="price-main">Gratis</div>
+    <p class="price-note">
+      Mientras afinamos la app junto a los primeros usuarios.<br>
+      <strong>El precio cambiará con el lanzamiento oficial.</strong>
+    </p>
+    <a href="#" class="price-btn">Empieza gratis hoy</a>
+    <p class="price-fine">Sin tarjeta · Sin compromiso · 100% privado</p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <a href="#" class="logo" style="text-decoration:none">
+    <div class="logo-mark" style="width:20px;height:20px;font-size:14px">O</div>
+    <span class="logo-name" style="font-size:17px">Osmin</span>
+  </a>
+  <span class="footer-copy">© 2025 Osmin</span>
+</footer>
+
+<script>
+// Animate journal card checkboxes on load
+const checkDelays = [600, 900, 1200, 1500];
+checkDelays.forEach((delay, i) => {
+  setTimeout(() => {
+    const el = document.getElementById('jh' + i);
+    if (el) el.classList.add('done');
+  }, delay);
+});
+
+// Scroll fade-up
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('v'); });
+}, { threshold: 0.08, rootMargin: '0px 0px -32px 0px' });
+document.querySelectorAll('.fu').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
