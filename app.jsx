@@ -638,7 +638,7 @@ function AccountPanel({ onClose }) {
           if (d.type === 'festivo' || d.type === 'vacaciones') return;
           totalDays++;
           const hasAny = m.habits?.some(h => {
-            const v = d.habitValues?.[h.id];
+            const v = d.habits?.[h.id];
             return h.type === 'check' ? v === 1 : (v || 0) >= (h.goal || 1);
           });
           if (hasAny) doneDays++;

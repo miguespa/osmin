@@ -117,6 +117,12 @@
 <div id="root"></div>
 
 <script>
+  if (!localStorage.getItem('osmin_user_email')) {
+    window.location.replace('login.html');
+  }
+</script>
+
+<script>
   // Tweak defaults block — host rewrites this on persist.
   window.__OSMIN_TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "dark",
