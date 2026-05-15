@@ -1,4 +1,7 @@
 {
+  "rewrites": [
+    { "source": "/", "destination": "/landing-a.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
