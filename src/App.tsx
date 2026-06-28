@@ -729,7 +729,7 @@ export default function App() {
           </div>
         )}
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px 28px 80px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: viewMode !== 'overview' && layout === 'table' ? '0 28px 80px' : '20px 28px 80px' }}>
           {viewMode === 'overview' ? (
             <OverviewView month={month} setMonth={setMonth} />
           ) : layout === 'table' ? (

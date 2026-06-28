@@ -176,14 +176,16 @@ export function TableLayout({ month, setMonth, density }: TableLayoutProps) {
   const cols = `64px 1fr ${month.habits.map((h: Habit) => h.type === 'numeric' ? '76px' : h.type === 'text-check' ? '52px' : '44px').join(' ')} 24px`
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'clip' }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'clip', marginTop: 20 }}>
       <div style={{
         display: 'grid', gridTemplateColumns: cols,
-        alignItems: 'center', gap: 8, padding: '10px 16px',
-        borderBottom: '1px solid var(--line)', background: 'var(--surface-alt)',
+        alignItems: 'center', gap: 8, padding: '11px 16px',
+        borderBottom: '1px solid var(--line-strong)',
+        background: 'color-mix(in oklab, var(--line) 55%, var(--surface))',
         fontFamily: 'Inter, sans-serif', fontSize: 10.5, fontWeight: 600,
-        color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em',
-        position: 'sticky', top: 0, zIndex: 2,
+        color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.06em',
+        position: 'sticky', top: 0, zIndex: 3,
+        boxShadow: '0 6px 12px -6px rgba(0,0,0,0.18)',
       }}>
         <div>Día</div>
         <div>Highlight</div>
