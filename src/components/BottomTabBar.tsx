@@ -42,8 +42,8 @@ function TabIcon({ tab, active }: { tab: MobileTab; active: boolean }) {
 
 const TABS: { id: MobileTab; label: string }[] = [
   { id: 'mes', label: 'Mes' },
-  { id: 'habitos', label: 'Hábitos' },
-  { id: 'stats', label: 'Stats' },
+  { id: 'stats', label: 'Resumen' },
+  { id: 'habitos', label: 'Editar' },
   { id: 'cuenta', label: 'Cuenta' },
 ]
 

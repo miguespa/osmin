@@ -1,16 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useAuth, useUser, useClerk } from '@clerk/clerk-react'
-import { buildBlankMonth, habitStats, habitStreak, MONTHS_ES } from './data'
+import { buildBlankMonth, MONTHS_ES } from './data'
 import { TableLayout } from './components/TableLayout'
 import { JournalLayout } from './components/JournalLayout'
-import { OverviewView } from './components/OverviewView'
+import { StatsView, EditView } from './components/OverviewView'
 import { TweaksPanel, TweakSection, TweakRadio, TweakColor, useTweaks } from './components/TweaksPanel'
 import { OnboardingFlow } from './components/OnboardingFlow'
 import { BottomTabBar, type MobileTab } from './components/BottomTabBar'
 import { useIsMobile } from './hooks/useIsMobile'
 import { makeSupabaseClient } from './lib/supabase'
 import { fetchAllData, saveMonthToDB, deleteMonthFromDB, saveTweaksToDB, saveUiStateToDB, deleteAllUserData, upsertUserProfile, recordLoginEvent } from './lib/db'
-import type { Month, Tweaks, LayoutType } from './types'
+import type { Month, Tweaks, LayoutType, ViewMode } from './types'
 import logoUrl from '/logo.png'
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
@@ -57,17 +57,16 @@ function NewMonthPicker({ suggested, months, onConfirm, onCancel }: {
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────
-function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, view, setView, onOpenAccount, onOpenTweaks, onViewHabits }: {
+function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, viewMode, onNav, onOpenAccount, onOpenTweaks }: {
   months: Month[]
   activeIdx: number
   setActiveIdx: (i: number) => void
   addMonth: (year: number, month: number) => void
   deleteMonth: (idx: number) => void
-  view: string
-  setView: (v: string) => void
+  viewMode: ViewMode
+  onNav: (m: ViewMode) => void
   onOpenAccount: () => void
   onOpenTweaks: () => void
-  onViewHabits: () => void
 }) {
   const { user } = useUser()
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
@@ -93,10 +92,10 @@ function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, view,
     setPicker({ year: y, month: m })
   }
 
-  const item = (id: string, label: string, count?: number) => {
-    const sel = view === id
+  const item = (id: ViewMode, label: string, count?: number) => {
+    const sel = viewMode === id
     return (
-      <button key={id} onClick={() => setView(id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', textAlign: 'left', background: sel ? 'var(--sidebar-sel)' : 'transparent', color: sel ? 'var(--text)' : 'var(--text-soft)', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: sel ? 600 : 500, width: '100%' }}>
+      <button key={id} onClick={() => onNav(id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', textAlign: 'left', background: sel ? 'var(--sidebar-sel)' : 'transparent', color: sel ? 'var(--text)' : 'var(--text-soft)', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: sel ? 600 : 500, width: '100%' }}>
         <span>{label}</span>
         {count !== undefined && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{count}</span>}
       </button>
@@ -114,13 +113,11 @@ function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, view,
       </div>
 
       {sectionTitle('Vista')}
-      {item('month', 'Mes actual')}
-      {item('year', `Año ${month.year}`)}
-      <button onClick={() => { setView('habits'); onViewHabits() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', textAlign: 'left', background: view === 'habits' ? 'var(--sidebar-sel)' : 'transparent', color: view === 'habits' ? 'var(--text)' : 'var(--text-soft)', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: view === 'habits' ? 600 : 500, width: '100%' }}>
-        <span>Hábitos</span>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{month.habits.length}</span>
-      </button>
+      {item('month', 'Calendario del mes')}
       {item('stats', 'Estadísticas')}
+
+      {sectionTitle('Configurar')}
+      {item('edit', 'Hábitos e hitos', month.habits.length)}
 
       {sectionTitle('Meses')}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -210,8 +207,8 @@ function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setVi
   setLayout: (l: LayoutType) => void
   onPrev: () => void
   onNext: () => void
-  viewMode: 'month' | 'overview'
-  setViewMode: (m: 'month' | 'overview') => void
+  viewMode: ViewMode
+  setViewMode: (m: ViewMode) => void
   onEditHabits: () => void
   isMobile?: boolean
   onOpenMonths?: () => void
@@ -242,63 +239,30 @@ function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setVi
             <span style={{ color: 'var(--text-muted)', marginLeft: 12, fontFamily: 'JetBrains Mono, monospace', fontSize: 22, letterSpacing: 0 }}>'{String(month.year).slice(2)}</span>
           </h1>
           <button onClick={onNext} className="month-nav">›</button>
-          <button onClick={() => setViewMode(viewMode === 'overview' ? 'month' : 'overview')} className="overview-btn" data-active={viewMode === 'overview'} title="Resumen del mes">
-            <svg width="13" height="13" viewBox="0 0 14 14" fill={viewMode === 'overview' ? 'var(--accent)' : 'none'} stroke={viewMode === 'overview' ? 'var(--accent)' : 'currentColor'} strokeWidth="1.5" strokeLinejoin="round">
-              <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z" />
+          <button onClick={() => setViewMode(viewMode === 'stats' ? 'month' : 'stats')} className="overview-btn" data-active={viewMode === 'stats'} title="Estadísticas de consecución">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke={viewMode === 'stats' ? 'var(--accent)' : 'currentColor'} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2.5 11.5V7M7 11.5V2.5M11.5 11.5V8.5" />
             </svg>
-            <span>Resumen del mes</span>
+            <span>Estadísticas</span>
           </button>
-          <button onClick={onEditHabits} title="Editar hábitos" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(201,122,42,.45)', background: 'rgba(201,122,42,.1)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#C97A2A', letterSpacing: '0.01em', transition: 'background 140ms, border-color 140ms' }}
+          <button onClick={() => viewMode === 'edit' ? setViewMode('month') : onEditHabits()} title="Editar hábitos e hitos" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(201,122,42,.45)', background: viewMode === 'edit' ? 'rgba(201,122,42,.22)' : 'rgba(201,122,42,.1)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#C97A2A', letterSpacing: '0.01em', transition: 'background 140ms, border-color 140ms' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(201,122,42,.18)'; e.currentTarget.style.borderColor = 'rgba(201,122,42,.7)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(201,122,42,.1)'; e.currentTarget.style.borderColor = 'rgba(201,122,42,.45)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = viewMode === 'edit' ? 'rgba(201,122,42,.22)' : 'rgba(201,122,42,.1)'; e.currentTarget.style.borderColor = 'rgba(201,122,42,.45)' }}
           >
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 10.5V12h1.5l5.5-5.5-1.5-1.5L2 10.5zM11.5 3.5a1.06 1.06 0 000-1.5l-1-1a1.06 1.06 0 00-1.5 0L8 2.5 9.5 4l2-1.5z"/>
             </svg>
-            Editar hábitos
+            Editar
           </button>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'center', visibility: viewMode === 'overview' ? 'hidden' : 'visible' }}>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', visibility: viewMode === 'month' ? 'visible' : 'hidden' }}>
         <Legend />
         <div style={{ display: 'inline-flex', padding: 3, background: 'var(--surface-alt)', border: '1px solid var(--line)', borderRadius: 9 }}>
           {([{ id: 'table', label: 'Tabla' }, { id: 'journal', label: 'Bitácora' }] as { id: LayoutType; label: string }[]).map(o => (
             <button key={o.id} onClick={() => setLayout(o.id)} style={{ padding: '6px 14px', background: layout === o.id ? 'var(--surface)' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: 7, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: layout === o.id ? 600 : 500, color: layout === o.id ? 'var(--text)' : 'var(--text-muted)', boxShadow: layout === o.id ? '0 1px 2px rgba(0,0,0,0.06)' : 'none' }}>{o.label}</button>
           ))}
         </div>
-      </div>
-    </div>
-  )
-}
-
-// ── StatTile ───────────────────────────────────────────────────────────────────
-function StatTile({ habit, month }: { habit: Month['habits'][0]; month: Month }) {
-  const stats = habitStats(month, habit)
-  const streak = habitStreak(month, habit)
-  return (
-    <div style={{ flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: habit.color }} />
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: 'var(--text)', letterSpacing: '0.01em' }}>{habit.label}</div>
-        <div style={{ flex: 1 }} />
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-          {habit.type === 'numeric' ? `meta ${(habit.goal ?? 0).toLocaleString('es')}` : 'check'}
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 32, lineHeight: 1, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-          {habit.type === 'numeric' ? (stats.avg ?? 0).toLocaleString('es') : stats.done}
-        </div>
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-muted)' }}>
-          {habit.type === 'numeric' ? 'media/día' : `de ${stats.total}`}
-        </div>
-      </div>
-      <div style={{ height: 4, borderRadius: 2, background: 'var(--line)', overflow: 'hidden' }}>
-        <div style={{ width: `${stats.pct}%`, height: '100%', background: habit.color }} />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-        <span>{stats.pct}% cumplido</span>
-        <span>racha {streak}d</span>
       </div>
     </div>
   )
@@ -621,9 +585,8 @@ export default function App() {
   const [saveError, setSaveError] = useState('')
   const [months, setMonths] = useState<Month[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
-  const [view, setView] = useState('month')
   const [layout, setLayout] = useState<LayoutType>('table')
-  const [viewMode, setViewMode] = useState<'month' | 'overview'>('month')
+  const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [showAccount, setShowAccount] = useState(false)
 
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS)
@@ -769,17 +732,8 @@ export default function App() {
     if (userId) deleteMonthFromDB(supabase, userId, m.year, m.month).catch(console.error)
   }
 
-  // ── Habit navigation helpers ──────────────────────────────────────────────────
-  const goToHabits = () => {
-    setViewMode('overview')
-  }
-
-  const goToEditHabits = () => {
-    setViewMode('overview')
-    setTimeout(() => {
-      document.getElementById('habits-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 60)
-  }
+  // ── Navigation helpers ────────────────────────────────────────────────────────
+  const goToEditHabits = () => setViewMode('edit')
 
   // ── TweaksPanel keyboard shortcut ────────────────────────────────────────────
   const openTweaks = () => window.postMessage({ type: '__activate_edit_mode' }, window.location.origin)
@@ -805,15 +759,15 @@ export default function App() {
   const tabEmail = user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? 'u'
   const tabInitial = user?.firstName?.[0]?.toUpperCase() ?? tabEmail[0].toUpperCase()
   const activeTab: MobileTab = showAccount ? 'cuenta'
-    : viewMode === 'overview' ? 'habitos'
-    : view === 'stats' ? 'stats'
+    : viewMode === 'edit' ? 'habitos'
+    : viewMode === 'stats' ? 'stats'
     : 'mes'
   const onSelectTab = (t: MobileTab) => {
     if (t === 'cuenta') { setShowAccount(true); return }
     setShowAccount(false)
-    if (t === 'mes') { setView('month'); setViewMode('month') }
-    else if (t === 'habitos') { setView('month'); setViewMode('overview') }
-    else if (t === 'stats') { setViewMode('month'); setView('stats') }
+    if (t === 'mes') setViewMode('month')
+    else if (t === 'habitos') setViewMode('edit')
+    else if (t === 'stats') setViewMode('stats')
   }
 
   // En móvil la tabla no cabe: usamos siempre la vista de tarjetas (Bitácora)
@@ -828,10 +782,9 @@ export default function App() {
           months={months} activeIdx={activeIdx}
           setActiveIdx={i => { setActiveIdx(i); setViewMode('month') }}
           addMonth={addMonth} deleteMonth={deleteMonth}
-          view={view} setView={setView}
+          viewMode={viewMode} onNav={m => { setShowAccount(false); setViewMode(m) }}
           onOpenAccount={() => setShowAccount(true)}
           onOpenTweaks={openTweaks}
-          onViewHabits={goToHabits}
         />
       )}
 
@@ -845,21 +798,17 @@ export default function App() {
           isMobile={isMobile} onOpenMonths={() => setShowMonthSheet(true)}
         />
 
-        {view === 'stats' && viewMode !== 'overview' && (
-          <div style={{ display: 'flex', gap: 12, padding: `16px ${padX}px 0`, flexWrap: 'wrap' }}>
-            {month.habits.map(h => <StatTile key={h.id} habit={h} month={month} />)}
-          </div>
-        )}
-
-        {viewMode !== 'overview' && (
+        {viewMode === 'month' && (
           <div style={{ padding: `12px ${padX}px 0` }}>
             <MilestonesStrip month={month} />
           </div>
         )}
 
-        <div style={{ flex: 1, overflow: 'auto', padding: viewMode !== 'overview' && effectiveLayout === 'table' ? `0 ${padX}px ${bottomPad}` : `${isMobile ? 14 : 20}px ${padX}px ${bottomPad}` }}>
-          {viewMode === 'overview' ? (
-            <OverviewView month={month} setMonth={setMonth} isMobile={isMobile} />
+        <div style={{ flex: 1, overflow: 'auto', padding: viewMode === 'month' && effectiveLayout === 'table' ? `0 ${padX}px ${bottomPad}` : `${isMobile ? 14 : 20}px ${padX}px ${bottomPad}` }}>
+          {viewMode === 'stats' ? (
+            <StatsView month={month} isMobile={isMobile} />
+          ) : viewMode === 'edit' ? (
+            <EditView month={month} setMonth={setMonth} isMobile={isMobile} />
           ) : effectiveLayout === 'table' ? (
             <TableLayout month={month} setMonth={setMonth} density={tweaks.density} />
           ) : (
@@ -873,7 +822,7 @@ export default function App() {
       {isMobile && showMonthSheet && (
         <MobileMonthSheet
           months={months} activeIdx={activeIdx}
-          onSelect={i => { setActiveIdx(i); setViewMode('month'); setView('month') }}
+          onSelect={i => { setActiveIdx(i); setViewMode('month') }}
           onDelete={deleteMonth}
           onAddMonth={addMonth}
           onClose={() => setShowMonthSheet(false)}

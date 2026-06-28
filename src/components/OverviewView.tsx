@@ -395,36 +395,63 @@ function SummaryCard({ label, value, sub }: { label: string; value: string | num
   )
 }
 
-interface OverviewViewProps {
+function EmptyHint({ text }: { text: string }) {
+  return (
+    <div style={{ gridColumn: '1 / -1', padding: '28px 8px', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif', fontSize: 13, background: 'var(--surface)', border: '1px dashed var(--line-strong)', borderRadius: 12 }}>
+      {text}
+    </div>
+  )
+}
+
+// ── Vista de estadísticas (consecución) — solo lectura ──────────────────────────
+interface StatsViewProps {
   month: Month
-  setMonth: (updater: Month | ((prev: Month) => Month)) => void
   isMobile?: boolean
 }
 
-export function OverviewView({ month, setMonth, isMobile = false }: OverviewViewProps) {
+export function StatsView({ month, isMobile = false }: StatsViewProps) {
   const totalDone = month.habits.reduce((sum, h) => sum + habitStats(month, h).done, 0)
   const totalPossible = month.habits.length * month.days.length
   const avgPct = totalPossible ? Math.round((totalDone / totalPossible) * 100) : 0
   const goals = month.goals || []
   const goalsDone = goals.filter(g => g.done).length
   const goalsPct = goals.length ? Math.round((goalsDone / goals.length) * 100) : 0
+  const bestStreak = month.habits.reduce((m, h) => Math.max(m, habitStreak(month, h)), 0)
+  const milestoneDays = month.days.filter(d => d.milestone).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? 8 : 12 }}>
-        <SummaryCard label="Cumplimiento general" value={`${avgPct}%`} sub={`media de ${month.habits.length} hábitos`} />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: isMobile ? 8 : 12 }}>
+        <SummaryCard label="Cumplimiento" value={`${avgPct}%`} sub={`media de ${month.habits.length} hábitos`} />
+        <SummaryCard label="Mejor racha" value={`${bestStreak}d`} sub="entre todos los hábitos" />
         <SummaryCard label="Hitos del mes" value={`${goalsDone}/${goals.length || 0}`} sub={`${goalsPct}% completado`} />
-        <SummaryCard label="Días destacados" value={month.days.filter(d => d.milestone).length} sub="marcados con ★" />
+        <SummaryCard label="Días destacados" value={milestoneDays} sub="marcados con ★" />
       </div>
-      <GoalsChecklist month={month} setMonth={setMonth} />
       <div>
         <SectionLabel>Estadísticas por hábito</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 12 }}>
-          {month.habits.map(h => <OverviewStatTile key={h.id} habit={h} month={month} />)}
+          {month.habits.length === 0
+            ? <EmptyHint text="Aún no hay hábitos. Añádelos desde «Editar»." />
+            : month.habits.map(h => <OverviewStatTile key={h.id} habit={h} month={month} />)}
         </div>
       </div>
-      <HabitEditor month={month} setMonth={setMonth} isMobile={isMobile} />
       <MonthMilestones month={month} />
+    </div>
+  )
+}
+
+// ── Vista de edición — hábitos e hitos del mes ──────────────────────────────────
+interface EditViewProps {
+  month: Month
+  setMonth: (updater: Month | ((prev: Month) => Month)) => void
+  isMobile?: boolean
+}
+
+export function EditView({ month, setMonth, isMobile = false }: EditViewProps) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <HabitEditor month={month} setMonth={setMonth} isMobile={isMobile} />
+      <GoalsChecklist month={month} setMonth={setMonth} />
     </div>
   )
 }

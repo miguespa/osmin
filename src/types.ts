@@ -1,6 +1,7 @@
 export type HabitType = 'check' | 'numeric' | 'text-check'
 export type DayStatus = 'work' | 'holiday' | 'vacation'
 export type LayoutType = 'table' | 'journal'
+export type ViewMode = 'month' | 'stats' | 'edit'
 export type Theme = 'light' | 'dark'
 export type Density = 'comfy' | 'compact'
 
