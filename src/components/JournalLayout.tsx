@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, type Ref } from 'react'
 import { WEEKDAYS_LONG, cycleCheck } from '../data'
 import type { Month, Day, Habit } from '../types'
 
@@ -69,20 +69,21 @@ function MiniCalendar({ month, selectedDay, onSelectDay, todayDay }: {
   )
 }
 
-function DayCard({ day, habits, selected, isToday, onUpdate, onSelect }: {
+function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef }: {
   day: Day
   habits: Habit[]
   selected: boolean
   isToday: boolean
   onUpdate: (mut: Partial<Day>) => void
   onSelect: () => void
+  innerRef?: Ref<HTMLDivElement>
 }) {
   const wd = WEEKDAYS_LONG[day.weekday]
   const stColor = day.status === 'holiday' ? 'var(--c-festivo)' :
     day.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent'
 
   return (
-    <div onClick={onSelect} style={{
+    <div ref={innerRef} onClick={onSelect} style={{
       background: isToday ? `color-mix(in oklab, var(--accent) 5%, var(--surface))` : 'var(--surface)',
       border: selected ? '1.5px solid var(--text)' : isToday ? '1.5px solid var(--accent)' : '1px solid var(--line)',
       borderRadius: 12, padding: '14px 16px', cursor: 'pointer', display: 'flex', gap: 14,
@@ -166,10 +167,20 @@ interface JournalLayoutProps {
 }
 
 export function JournalLayout({ month, setMonth, density, isMobile = false }: JournalLayoutProps) {
-  const [selected, setSelected] = useState<number | null>(null)
   const _today = new Date()
   const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
     ? _today.getDate() : null
+  const [selected, setSelected] = useState<number | null>(todayDay)
+
+  // Al abrir un mes en curso, centramos la vista en el día de hoy
+  const todayCardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    setSelected(todayDay)
+    if (todayDay && todayCardRef.current) {
+      todayCardRef.current.scrollIntoView({ block: 'center' })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month.year, month.month])
 
   // Un mes sin días (p. ej. dato corrupto) no debe romper la app
   if (!month.days || month.days.length === 0) {
@@ -215,6 +226,7 @@ export function JournalLayout({ month, setMonth, density, isMobile = false }: Jo
       <div style={{ display: 'flex', flexDirection: 'column', gap: density === 'compact' ? 6 : 10 }}>
         {month.days.map(d => (
           <DayCard key={d.day} day={d} habits={month.habits}
+            innerRef={d.day === todayDay ? todayCardRef : undefined}
             selected={selected === d.day} isToday={d.day === todayDay}
             onSelect={() => setSelected(d.day)}
             onUpdate={mut => updateDay(d.day, mut)}

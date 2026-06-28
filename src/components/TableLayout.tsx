@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { WEEKDAYS_ES, cycleCheck, cycleStatus } from '../data'
 import type { Month, Habit } from '../types'
 
@@ -163,6 +163,15 @@ export function TableLayout({ month, setMonth, density }: TableLayoutProps) {
   const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
     ? _today.getDate() : null
 
+  // Al abrir un mes en curso, centramos la vista en el día de hoy
+  const todayRowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (todayDay && todayRowRef.current) {
+      todayRowRef.current.scrollIntoView({ block: 'center' })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month.year, month.month])
+
   const updateDay = (idx: number, mut: (d: typeof month.days[0]) => Partial<typeof month.days[0]>) => {
     setMonth(m => {
       const next = { ...m, days: m.days.slice() }
@@ -201,7 +210,7 @@ export function TableLayout({ month, setMonth, density }: TableLayoutProps) {
           ? `color-mix(in oklab, var(--accent) 6%, var(--surface))`
           : idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-alt)'
         return (
-          <div key={d.day} style={{
+          <div key={d.day} ref={isToday ? todayRowRef : undefined} style={{
             display: 'grid', gridTemplateColumns: cols,
             alignItems: 'center', minHeight: rowH, padding: '0 16px',
             borderBottom: idx === month.days.length - 1 ? 'none' : `1px solid ${isToday ? 'color-mix(in oklab, var(--accent) 20%, var(--line-soft))' : 'var(--line-soft)'}`,
