@@ -344,7 +344,9 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount }: {
         totalDays++
         const hasAny = m.habits?.some(h => {
           const v = d.habits?.[h.id]
-          return h.type === 'check' ? v === 1 : (v || 0) >= (h.goal || 1)
+          return h.type === 'check' ? v === 1
+            : h.type === 'text-check' ? (typeof v === 'string' && v.length > 0)
+            : (Number(v) || 0) >= (h.goal || 1)
         })
         if (hasAny) doneDays++
       })

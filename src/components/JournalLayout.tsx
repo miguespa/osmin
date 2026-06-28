@@ -35,7 +35,9 @@ function MiniCalendar({ month, selectedDay, onSelectDay, todayDay }: {
             d.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent'
           const habitDots = month.habits.map((h: Habit) => {
             const v = d.habits[h.id]
-            const ok = h.type === 'check' ? v === 1 : (v || 0) >= (h.goal ?? 0)
+            const ok = h.type === 'check' ? v === 1
+              : h.type === 'text-check' ? (typeof v === 'string' && v.length > 0)
+              : (Number(v) || 0) >= (h.goal ?? 0)
             return ok ? h.color : null
           })
           return (
@@ -110,13 +112,20 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect }: {
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {habits.map(h => {
             const v = day.habits[h.id]
-            const ok = h.type === 'check' ? v === 1 : (v || 0) >= (h.goal ?? 0)
-            const tinted = h.type === 'check' ? v === 1 : v > 0
+            const ok = h.type === 'check' ? v === 1
+              : h.type === 'text-check' ? (typeof v === 'string' && v.length > 0)
+              : (Number(v) || 0) >= (h.goal ?? 0)
+            const tinted = h.type === 'check' ? v === 1
+              : h.type === 'text-check' ? (typeof v === 'string' && v.length > 0)
+              : Number(v) > 0
             return (
               <button key={h.id} onClick={e => {
                 e.stopPropagation()
                 if (h.type === 'check') {
-                  onUpdate({ habits: { ...day.habits, [h.id]: cycleCheck(v) } })
+                  onUpdate({ habits: { ...day.habits, [h.id]: cycleCheck(v as number) } })
+                } else if (h.type === 'text-check') {
+                  const next = prompt(`${h.label} (máx. 3 letras)`, String(v || ''))
+                  if (next !== null) onUpdate({ habits: { ...day.habits, [h.id]: next.trim().toUpperCase().slice(0, 3) } })
                 } else {
                   const next = prompt(`${h.label} (meta: ${h.goal})`, String(v || 0))
                   if (next !== null) {

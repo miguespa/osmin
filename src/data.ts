@@ -95,8 +95,8 @@ export function buildBlankMonth(year: number, monthIdx: number, prevHabits?: Hab
   for (let i = 1; i <= daysInMonth; i++) {
     const wd = (firstWeekday + i - 1) % 7
     const isWeekend = wd === 0 || wd === 6
-    const habitValues: Record<string, number> = {}
-    for (const h of habits) habitValues[h.id] = 0
+    const habitValues: Record<string, number | string> = {}
+    for (const h of habits) habitValues[h.id] = h.type === 'text-check' ? '' : 0
     days.push({
       day: i, weekday: wd,
       status: isWeekend ? 'holiday' : 'work',
@@ -116,10 +116,17 @@ export function habitStats(month: Month, habit: Habit): HabitStats {
     const pct = Math.min(100, Math.round((done / expected) * 100))
     return { done, total: days.length, expected, pct }
   }
+  if (habit.type === 'text-check') {
+    const done = days.filter(d => { const v = d.habits[habit.id]; return typeof v === 'string' && v.length > 0 }).length
+    const tpw = habit.targetPerWeek || 7
+    const expected = Math.max(1, Math.round((days.length / 7) * tpw))
+    const pct = Math.min(100, Math.round((done / expected) * 100))
+    return { done, total: days.length, expected, pct }
+  }
   if (habit.type === 'numeric') {
     const goal = habit.goal!
-    const hit = days.filter(d => (d.habits[habit.id] || 0) >= goal).length
-    const sum = days.reduce((a, d) => a + (d.habits[habit.id] || 0), 0)
+    const hit = days.filter(d => (Number(d.habits[habit.id]) || 0) >= goal).length
+    const sum = days.reduce((a, d) => a + (Number(d.habits[habit.id]) || 0), 0)
     return {
       done: hit, total: days.length,
       pct: Math.round((hit / days.length) * 100),
@@ -135,7 +142,9 @@ export function habitStreak(month: Month, habit: Habit): number {
   let best = 0, cur = 0
   for (const d of days) {
     const v = d.habits[habit.id]
-    const ok = habit.type === 'check' ? v === 1 : (v || 0) >= habit.goal!
+    const ok = habit.type === 'check' ? v === 1
+             : habit.type === 'text-check' ? (typeof v === 'string' && v.length > 0)
+             : (Number(v) || 0) >= habit.goal!
     if (ok) { cur++; best = Math.max(best, cur) } else { cur = 0 }
   }
   return best

@@ -34,6 +34,50 @@ function CheckCell({ value, color, onClick }: { value: number; color: string; on
   )
 }
 
+function TextCheckCell({ value, color, onChange }: { value: string; color: string; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+
+  const commit = () => {
+    onChange(draft.trim().toUpperCase().slice(0, 3))
+    setEditing(false)
+  }
+
+  const isDone = value.length > 0
+
+  if (editing) {
+    return (
+      <input autoFocus value={draft}
+        onChange={e => setDraft(e.target.value.toUpperCase().slice(0, 3))}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false) } }}
+        style={{
+          width: 52, height: 28, borderRadius: 8,
+          border: `1.5px solid ${color}`, padding: '0 4px',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
+          textAlign: 'center', background: 'var(--surface)',
+          color: 'var(--text)', outline: 'none', textTransform: 'uppercase',
+        }}
+      />
+    )
+  }
+
+  return (
+    <button onClick={() => setEditing(true)} className="osmin-cell" style={{
+      width: 52, height: 28, borderRadius: 8,
+      border: `1.5px solid ${isDone ? color : 'var(--line)'}`,
+      background: isDone ? `color-mix(in oklab, ${color} 18%, transparent)` : 'transparent',
+      cursor: 'pointer', padding: 0,
+      fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 700,
+      color: isDone ? color : 'var(--line-strong)',
+      letterSpacing: '0.04em',
+    }}>
+      {isDone ? value : <span style={{ fontSize: 9, opacity: 0.4 }}>···</span>}
+    </button>
+  )
+}
+
 function NumericCell({ value, goal, color, onChange }: { value: number; goal: number; color: string; onChange: (v: number) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(String(value || ''))
@@ -126,19 +170,20 @@ export function TableLayout({ month, setMonth, density }: TableLayoutProps) {
       return next
     })
   }
-  const updateHabit = (idx: number, hid: string, val: number) =>
+  const updateHabit = (idx: number, hid: string, val: number | string) =>
     updateDay(idx, d => ({ habits: { ...d.habits, [hid]: val } }))
 
-  const cols = `64px 1fr ${month.habits.map((h: Habit) => h.type === 'numeric' ? '76px' : '44px').join(' ')} 24px`
+  const cols = `64px 1fr ${month.habits.map((h: Habit) => h.type === 'numeric' ? '76px' : h.type === 'text-check' ? '52px' : '44px').join(' ')} 24px`
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'clip' }}>
       <div style={{
         display: 'grid', gridTemplateColumns: cols,
         alignItems: 'center', gap: 8, padding: '10px 16px',
         borderBottom: '1px solid var(--line)', background: 'var(--surface-alt)',
         fontFamily: 'Inter, sans-serif', fontSize: 10.5, fontWeight: 600,
         color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em',
+        position: 'sticky', top: 0, zIndex: 2,
       }}>
         <div>Día</div>
         <div>Highlight</div>
@@ -193,10 +238,13 @@ export function TableLayout({ month, setMonth, density }: TableLayoutProps) {
             {month.habits.map(h => (
               <div key={h.id} style={{ display: 'flex', justifyContent: 'center' }}>
                 {h.type === 'check' ? (
-                  <CheckCell value={d.habits[h.id]} color={h.color}
-                    onClick={() => updateHabit(idx, h.id, cycleCheck(d.habits[h.id]))} />
+                  <CheckCell value={d.habits[h.id] as number} color={h.color}
+                    onClick={() => updateHabit(idx, h.id, cycleCheck(d.habits[h.id] as number))} />
+                ) : h.type === 'text-check' ? (
+                  <TextCheckCell value={String(d.habits[h.id] || '')} color={h.color}
+                    onChange={v => updateHabit(idx, h.id, v)} />
                 ) : (
-                  <NumericCell value={d.habits[h.id] || 0} goal={h.goal ?? 0} color={h.color}
+                  <NumericCell value={Number(d.habits[h.id]) || 0} goal={h.goal ?? 0} color={h.color}
                     onChange={v => updateHabit(idx, h.id, v)} />
                 )}
               </div>

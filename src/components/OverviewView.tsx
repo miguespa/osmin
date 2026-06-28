@@ -29,7 +29,8 @@ function OverviewStatTile({ habit, month }: { habit: Habit; month: Month }) {
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
           {habit.type === 'numeric'
             ? `${(habit.goal ?? 0).toLocaleString('es')}/día`
-            : (habit.targetPerWeek === 7 ? 'todos los días' : `${habit.targetPerWeek}/sem`)}
+            : (habit.targetPerWeek === 7 ? 'todos los días' : `${habit.targetPerWeek}/sem`)
+          }
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -211,6 +212,26 @@ function ColorDot({ color, options, onChange }: { color: string; options: string
 }
 
 function TargetEditor({ habit, onChange }: { habit: Habit; onChange: (mut: Partial<Habit>) => void }) {
+  if (habit.type === 'text-check') {
+    const tpw = habit.targetPerWeek || 7
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <select value={tpw} onChange={e => onChange({ targetPerWeek: parseInt(e.target.value, 10) })} style={{
+          height: 26, padding: '0 22px 0 8px',
+          border: '1px solid var(--line)', borderRadius: 6,
+          background: 'var(--surface-alt)', color: 'var(--text)',
+          fontFamily: 'Inter, sans-serif', fontSize: 12, outline: 'none', cursor: 'pointer',
+          appearance: 'none', WebkitAppearance: 'none',
+          backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='gray' d='M0 0h10L5 6z'/></svg>\")",
+          backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center',
+        }}>
+          {[1, 2, 3, 4, 5, 6, 7].map(n => (
+            <option key={n} value={n}>{n === 7 ? 'Todos los días' : `${n} ${n === 1 ? 'día' : 'días'}/semana`}</option>
+          ))}
+        </select>
+      </div>
+    )
+  }
   if (habit.type === 'numeric') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -256,8 +277,12 @@ function HabitRow({ habit, palette, onChange, onDelete, canDelete }: { habit: Ha
       <input value={habit.label} onChange={e => onChange({ label: e.target.value })} placeholder="Nombre del hábito" style={{ border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 6, padding: '3px 7px', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: 'var(--text)', minWidth: 0, width: '100%', display: 'block' }} />
       <input value={habit.short} onChange={e => onChange({ short: e.target.value.slice(0, 7) })} maxLength={7} placeholder="Abrev." title="Texto en cabecera de vista mensual" style={{ border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 6, padding: '3px 7px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 600, color: 'var(--text)', minWidth: 0, width: '100%' }} />
       <div style={{ display: 'inline-flex', padding: 2, background: 'var(--surface-alt)', border: '1px solid var(--line)', borderRadius: 7 }}>
-        {[{ id: 'check', label: 'Check' }, { id: 'numeric', label: 'Número' }].map(o => (
-          <button key={o.id} onClick={() => onChange(o.id === 'numeric' ? { type: 'numeric', goal: habit.goal || 7000 } : { type: 'check', targetPerWeek: habit.targetPerWeek || 7 })} style={{ padding: '4px 10px', flex: 1, background: habit.type === o.id ? 'var(--surface)' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: 5, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: habit.type === o.id ? 600 : 500, color: habit.type === o.id ? 'var(--text)' : 'var(--text-muted)' }}>{o.label}</button>
+        {([{ id: 'check', label: 'Check' }, { id: 'text-check', label: 'Texto' }, { id: 'numeric', label: 'Núm.' }] as { id: string; label: string }[]).map(o => (
+          <button key={o.id} onClick={() => onChange(
+            o.id === 'numeric' ? { type: 'numeric', goal: habit.goal || 7000 } :
+            o.id === 'text-check' ? { type: 'text-check', targetPerWeek: habit.targetPerWeek || 7 } :
+            { type: 'check', targetPerWeek: habit.targetPerWeek || 7 }
+          )} style={{ padding: '4px 8px', flex: 1, background: habit.type === o.id ? 'var(--surface)' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: 5, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: habit.type === o.id ? 600 : 500, color: habit.type === o.id ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{o.label}</button>
         ))}
       </div>
       <TargetEditor habit={habit} onChange={onChange} />

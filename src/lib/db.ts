@@ -4,7 +4,7 @@ import type { Month, Habit, Day, Goal, Tweaks, LayoutType } from '../types'
 // ── Types for DB rows ─────────────────────────────────────────────────────────
 interface DbMonth   extends Record<string, unknown> { id: string; year: number; month: number }
 interface DbHabit   extends Record<string, unknown> { month_id: string; app_id: string; label: string; short: string; type: string; color: string; goal: number | null; target_per_week: number | null; unit: string | null; position: number }
-interface DbDay     extends Record<string, unknown> { month_id: string; day: number; weekday: number; status: string; highlight: string; milestone: boolean; habit_values: Record<string, number> }
+interface DbDay     extends Record<string, unknown> { month_id: string; day: number; weekday: number; status: string; highlight: string; milestone: boolean; habit_values: Record<string, number | string> }
 interface DbGoal    extends Record<string, unknown> { month_id: string; app_id: string; text: string; done: boolean; position: number }
 interface DbTweaks  { theme: string; density: string; accent: string }
 interface DbUiState { active_year: number | null; active_month: number | null; layout: string }

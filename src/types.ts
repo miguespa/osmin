@@ -1,4 +1,4 @@
-export type HabitType = 'check' | 'numeric'
+export type HabitType = 'check' | 'numeric' | 'text-check'
 export type DayStatus = 'work' | 'holiday' | 'vacation'
 export type LayoutType = 'table' | 'journal'
 export type Theme = 'light' | 'dark'
@@ -21,7 +21,7 @@ export interface Day {
   status: DayStatus
   highlight: string
   milestone: boolean
-  habits: Record<string, number>
+  habits: Record<string, number | string>
 }
 
 export interface Goal {
