@@ -1,15 +1,810 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <title>Osmin — Hábitos & Diario</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Osmin — Tu vida diaria, en orden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #16161A;
+  --surface: #1E1E22;
+  --surface-alt: #232328;
+  --surface-hi: #2A2A30;
+  --text: #ECEAE4;
+  --text-soft: #BFBDB6;
+  --text-muted: #82807A;
+  --line: #2C2C32;
+  --line-soft: #26262B;
+  --accent: #2A6FDB;
+  --accent-dim: rgba(42,111,219,.18);
+  --green: #1F8A5B;
+  --purple: #7C5CD0;
+  --orange: #C97A2A;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  background-image:
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ── NAV ─────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 48px;
+  background: rgba(22,22,26,.82);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.nav-logo { display: flex; align-items: center; text-decoration: none; }
+.nav-logo img {
+  height: 30px; width: auto;
+  filter: brightness(0) invert(1) opacity(.92);
+}
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.nav-link {
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+  color: var(--text-muted); text-decoration: none;
+  transition: color 150ms;
+}
+.nav-link:hover { color: var(--text); }
+.nav-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px;
+  border: 1px solid rgba(255,255,255,.1); border-radius: 8px;
+  background: transparent; color: var(--text);
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; text-decoration: none;
+  transition: background 150ms, border-color 150ms;
+}
+.nav-btn:hover { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.2); }
+
+/* ── HERO ─────────────────────────────────────────── */
+.hero {
+  min-height: 100vh; position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 88px 32px 56px;
+  overflow: hidden;
+}
+.hero-glow {
+  position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+  width: 700px; height: 400px;
+  background: radial-gradient(ellipse, rgba(42,111,219,.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px; font-weight: 500;
+  color: var(--text-muted); letter-spacing: .14em; text-transform: uppercase;
+  margin-bottom: 28px;
+  animation: fuIn .55s ease forwards .1s; opacity: 0;
+}
+.hero h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(48px, 8.5vw, 92px);
+  font-weight: 400; line-height: 1.04; letter-spacing: -.025em;
+  color: var(--text); max-width: 880px; margin-bottom: 24px;
+  animation: fuIn .6s ease forwards .2s; opacity: 0;
+}
+.hero h1 em {
+  font-style: italic; color: var(--text-soft);
+  background: linear-gradient(135deg, var(--text-soft), var(--text-muted));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-sub {
+  font-size: 17px; color: var(--text-soft);
+  max-width: 450px; line-height: 1.68; margin-bottom: 40px;
+  animation: fuIn .55s ease forwards .3s; opacity: 0;
+}
+.hero-actions {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  margin-bottom: 28px;
+  animation: fuIn .55s ease forwards .4s; opacity: 0;
+}
+.btn-p {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 14px 24px; background: var(--accent); color: #fff;
+  border: none; border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  transition: background 150ms, transform 150ms, box-shadow 200ms;
+}
+.btn-p:hover { background: #1f5cc4; transform: translateY(-1px); box-shadow: 0 8px 28px rgba(42,111,219,.42); }
+.btn-s {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 14px 22px; background: transparent; color: var(--text-soft);
+  border: 1px solid var(--line); border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 500;
+  cursor: pointer; text-decoration: none;
+  transition: all 150ms;
+}
+.btn-s:hover { border-color: rgba(255,255,255,.18); color: var(--text); background: rgba(255,255,255,.04); }
+.hero-trust {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--text-muted); letter-spacing: .05em;
+  animation: fuIn .55s ease forwards .5s; opacity: 0;
+}
+.scroll-hint {
+  position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  animation: fuIn .55s ease forwards .9s, scrollBounce 2s ease-in-out infinite 1.5s;
+  opacity: 0;
+  cursor: default;
+}
+.scroll-hint span { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--text-muted); letter-spacing: .1em; text-transform: uppercase; }
+@keyframes scrollBounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(5px); } }
+
+/* ── PROOF STRIP ─────────────────────────────────── */
+.proof-strip {
+  border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
+  padding: 18px 48px;
+  display: flex; align-items: center; justify-content: center; gap: 0;
+  background: var(--surface-alt);
+}
+.proof-item { display: flex; align-items: center; gap: 10px; padding: 0 32px; }
+.proof-item:not(:last-child) { border-right: 1px solid var(--line); }
+.proof-n {
+  font-family: 'Instrument Serif', serif; font-size: 28px; color: var(--text);
+  line-height: 1; letter-spacing: -.01em;
+}
+.proof-n-sm {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--text-muted); display: block; margin-top: 2px;
+}
+
+/* ── MOCKUP ──────────────────────────────────────── */
+.mockup-section { padding: 72px 32px 80px; max-width: 980px; margin: 0 auto; }
+.mockup-lbl {
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--text-muted); letter-spacing: .13em; text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.mockup-win {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 40px 100px rgba(0,0,0,.72), 0 0 0 .5px rgba(255,255,255,.06) inset;
+}
+.win-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px; border-bottom: 1px solid var(--line);
+  background: var(--surface-alt);
+}
+.tl { display: flex; gap: 6px; }
+.tl span { width: 11px; height: 11px; border-radius: 50%; display: block; }
+.win-title {
+  flex: 1; text-align: center;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; color: var(--text-muted);
+}
+.win-tabs {
+  display: flex; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 7px; padding: 2px; gap: 1px;
+}
+.win-tab { padding: 4px 11px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-muted); border-radius: 5px; }
+.win-tab.on { background: var(--surface-alt); color: var(--text); font-weight: 600; }
+
+.win-layout { display: flex; height: 220px; overflow: hidden; position: relative; }
+.win-layout::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 80px;
+  background: linear-gradient(transparent, var(--surface)); pointer-events: none; z-index: 2;
+}
+.win-sidebar {
+  width: 168px; flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface-alt);
+  padding: 10px 0; overflow: hidden;
+}
+.sb-sect {
+  font-family: 'Inter', sans-serif; font-size: 9.5px; font-weight: 600;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em;
+  padding: 10px 12px 5px;
+}
+.sb-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 12px;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+  color: var(--text-soft); border-radius: 0;
+}
+.sb-item.sel { background: rgba(255,255,255,.06); color: var(--text); font-weight: 600; }
+.sb-count {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted);
+}
+.sb-divider { height: 1px; background: var(--line-soft); margin: 6px 12px; }
+
+.win-main { flex: 1; overflow: hidden; }
+.htable { width: 100%; border-collapse: collapse; }
+.htable th {
+  padding: 7px 9px; background: rgba(35,35,40,.8);
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 500;
+  color: var(--text-muted); text-align: center;
+  border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; white-space: nowrap;
+  position: sticky; top: 0; z-index: 1;
+}
+.htable th.name-col { text-align: left; padding-left: 14px; min-width: 82px; }
+.htable td { padding: 7px 9px; border-bottom: 1px solid var(--line-soft); text-align: center; vertical-align: middle; }
+.htable td.name-td { text-align: left; padding-left: 14px; }
+.hname { display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: var(--text-soft); white-space: nowrap; }
+.hcolor { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+  opacity: 0; transform: scale(.15);
+  transition: opacity .16s ease, transform .16s cubic-bezier(.3,.7,.4,1);
+}
+.dot.in { opacity: 1; transform: scale(1); }
+.dot-empty { display: inline-block; width: 10px; height: 10px; border-radius: 3px; border: 1px solid var(--line); opacity: .3; }
+.num {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; font-variant-numeric: tabular-nums;
+  color: var(--text-muted); opacity: 0; transition: opacity .22s ease;
+}
+.num.in { opacity: 1; }
+.num.hit { color: var(--accent); }
+.day-hl {
+  font-family: 'Inter', sans-serif; font-size: 9px; color: var(--text-muted);
+  max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0; transition: opacity .3s ease;
+}
+.day-hl.in { opacity: 1; }
+
+/* ── FEATURES ────────────────────────────────────── */
+.feat-section { padding: 80px 32px; max-width: 980px; margin: 0 auto; }
+.sect-lbl {
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
+  color: var(--text-muted); letter-spacing: .13em; text-transform: uppercase;
+  margin-bottom: 48px;
+}
+.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.feat-card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 16px; padding: 26px; cursor: default; overflow: hidden;
+  transition: border-color 200ms, transform 200ms, box-shadow 200ms;
+}
+.feat-card:hover { border-color: rgba(255,255,255,.1); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.3); }
+.feat-ico {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--surface-alt); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+}
+.feat-title { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.feat-desc { font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--text-muted); line-height: 1.65; margin-bottom: 18px; }
+
+/* Feature mini-visuals */
+.feat-dots { display: flex; flex-wrap: wrap; gap: 3px; }
+.feat-dot { width: 9px; height: 9px; border-radius: 2px; }
+.feat-quote {
+  font-family: 'Instrument Serif', serif; font-style: italic;
+  font-size: 13px; color: var(--text-soft); line-height: 1.55;
+  padding-left: 10px; border-left: 2px solid var(--line);
+}
+.feat-bar-wrap { display: flex; flex-direction: column; gap: 6px; }
+.feat-bar-row { display: flex; align-items: center; gap: 8px; }
+.feat-bar-lbl { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--text-muted); width: 32px; flex-shrink: 0; }
+.feat-bar-track { flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.feat-bar-fill { height: 100%; border-radius: 2px; transition: width .8s cubic-bezier(.3,.7,.4,1); }
+.feat-bar-val { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-muted); width: 24px; text-align: right; }
+
+/* ── STATS ───────────────────────────────────────── */
+.stats-section {
+  padding: 80px 32px;
+  border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-alt);
+}
+.stats-inner { max-width: 700px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+.stat-item { text-align: center; padding: 0 24px; }
+.stat-item:not(:last-child) { border-right: 1px solid var(--line); }
+.stat-n-wrap { display: flex; align-items: baseline; justify-content: center; gap: 2px; margin-bottom: 8px; }
+.stat-n {
+  font-family: 'Instrument Serif', serif; font-size: 64px; line-height: 1;
+  color: var(--text); letter-spacing: -.03em;
+}
+.stat-unit { font-family: 'Instrument Serif', serif; font-size: 36px; color: var(--text-soft); }
+.stat-lbl { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.stat-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: .06em; margin-top: 4px; }
+
+/* ── PRICING ─────────────────────────────────────── */
+.price-section { padding: 80px 32px; display: flex; flex-direction: column; align-items: center; }
+.price-card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 24px; padding: 52px 56px;
+  max-width: 520px; width: 100%; text-align: center; position: relative; overflow: hidden;
+}
+.price-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+.price-glow {
+  position: absolute; top: -40px; left: 50%; transform: translateX(-50%);
+  width: 300px; height: 200px;
+  background: radial-gradient(ellipse, rgba(42,111,219,.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+.price-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(42,111,219,.1); border: 1px solid rgba(42,111,219,.22);
+  border-radius: 99px; padding: 5px 14px;
+  font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+  color: var(--accent); margin-bottom: 28px;
+}
+.price-old {
+  font-family: 'JetBrains Mono', monospace; font-size: 17px; color: var(--text-muted);
+  text-decoration: line-through; text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(130,135,122,.6); margin-bottom: 8px;
+}
+.price-main {
+  font-family: 'Instrument Serif', serif; font-size: 76px; line-height: 1;
+  color: var(--text); letter-spacing: -.02em; margin-bottom: 6px;
+}
+.price-temp {
+  font-family: 'Inter', sans-serif; font-size: 13px; color: var(--accent);
+  font-weight: 500; margin-bottom: 28px;
+}
+.price-list {
+  list-style: none; text-align: left;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 32px;
+}
+.price-list li {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Inter', sans-serif; font-size: 13.5px; color: var(--text-soft);
+}
+.price-list li::before {
+  content: ''; display: block; width: 16px; height: 16px; flex-shrink: 0;
+  border-radius: 50%; background: rgba(42,111,219,.15); border: 1px solid rgba(42,111,219,.3);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 10' fill='none' stroke='%232A6FDB' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 5.5L4.2 7.5L8 3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-size: 10px; background-position: center;
+}
+.price-note { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 28px; }
+.price-note strong { color: var(--text-soft); }
+.price-btn {
+  display: block; width: 100%; padding: 15px;
+  background: var(--accent); color: #fff; border: none; border-radius: 10px;
+  font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 600;
+  cursor: pointer; text-decoration: none;
+  transition: background 150ms, transform 150ms, box-shadow 200ms;
+  margin-bottom: 14px;
+}
+.price-btn:hover { background: #1f5cc4; transform: translateY(-1px); box-shadow: 0 6px 24px rgba(42,111,219,.4); }
+.price-fine { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted); letter-spacing: .04em; }
+
+/* ── CTA BANNER ──────────────────────────────────── */
+.cta-banner {
+  padding: 80px 32px;
+  text-align: center;
+  background: var(--surface-alt);
+  border-top: 1px solid var(--line-soft);
+  position: relative; overflow: hidden;
+}
+.cta-banner-glow {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 600px; height: 300px;
+  background: radial-gradient(ellipse, rgba(42,111,219,.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.cta-banner h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(32px, 5vw, 52px); font-weight: 400;
+  color: var(--text); margin-bottom: 16px; letter-spacing: -.015em;
+}
+.cta-banner h2 em { font-style: italic; color: var(--text-soft); }
+.cta-banner p { font-size: 16px; color: var(--text-muted); margin-bottom: 36px; }
+
+/* ── FOOTER ──────────────────────────────────────── */
+footer {
+  padding: 32px 48px;
+  border-top: 1px solid rgba(255,255,255,.05);
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+.footer-logo img { height: 22px; width: auto; filter: brightness(0) invert(1) opacity(.5); }
+.footer-copy { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted); }
+
+/* ── ANIMATIONS ──────────────────────────────────── */
+.fu { opacity: 0; transform: translateY(20px); transition: opacity .5s ease, transform .5s ease; }
+.fu.v { opacity: 1; transform: none; }
+.fu-d1 { transition-delay: 80ms; }
+.fu-d2 { transition-delay: 160ms; }
+.fu-d3 { transition-delay: 240ms; }
+
+@keyframes fuIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+@media (max-width: 860px) {
+  nav { padding: 0 20px; }
+  .hero { padding: 72px 20px 56px; }
+  .proof-strip { padding: 14px 20px; gap: 0; flex-wrap: wrap; }
+  .proof-item { padding: 8px 16px; }
+  .mockup-section, .feat-section { padding: 48px 20px; }
+  .price-section { padding: 48px 20px; }
+  .cta-banner { padding: 56px 20px; }
+  .stats-inner { grid-template-columns: 1fr; gap: 32px; }
+  .stat-item:not(:last-child) { border-right: none; border-bottom: 1px solid var(--line); padding-bottom: 32px; }
+  .feat-grid { grid-template-columns: 1fr; }
+  .price-card { padding: 36px 24px; }
+  .win-sidebar { display: none; }
+  footer { padding: 24px 20px; flex-direction: column; text-align: center; }
+}
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/logo.png" alt="Osmin">
+  </a>
+  <div class="nav-right">
+    <a href="#mockup" class="nav-link">Producto</a>
+    <a href="/app" class="nav-btn">
+      Acceder
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <path d="M2 6h8M6 2.5l3.5 3.5L6 9.5"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <p class="eyebrow">Hábitos · Diario · Claridad</p>
+  <h1>Tu vida diaria,<br><em>en orden.</em></h1>
+  <p class="hero-sub">Hábitos y diario integrados en un espacio limpio. Sin fricción, sin suscripción, sin ruido.</p>
+  <div class="hero-actions">
+    <a href="/app" class="btn-p">
+      Empezar gratis
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M2 6.5h9M7 2.5l4 4-4 4"/>
+      </svg>
+    </a>
+    <a href="#mockup" class="btn-s">Ver el producto</a>
+  </div>
+  <p class="hero-trust">Sin tarjeta · Sin suscripción · 100% privado</p>
+  <div class="scroll-hint">
+    <span>Ver más</span>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round">
+      <path d="M4 6l4 4 4-4"/>
+    </svg>
+  </div>
+</section>
+
+<!-- PROOF STRIP -->
+<div class="proof-strip fu">
+  <div class="proof-item">
+    <div>
+      <span class="proof-n">31</span>
+      <span class="proof-n-sm">días trazados</span>
+    </div>
+  </div>
+  <div class="proof-item">
+    <div>
+      <span class="proof-n">4</span>
+      <span class="proof-n-sm">hábitos activos</span>
+    </div>
+  </div>
+  <div class="proof-item">
+    <div>
+      <span class="proof-n">76<small style="font-size:.55em">%</small></span>
+      <span class="proof-n-sm">completados</span>
+    </div>
+  </div>
+  <div class="proof-item">
+    <div>
+      <span class="proof-n">11</span>
+      <span class="proof-n-sm">días de racha</span>
+    </div>
+  </div>
+</div>
+
+<!-- MOCKUP -->
+<section id="mockup" class="mockup-section">
+  <p class="mockup-lbl fu">El producto</p>
+  <div class="mockup-win fu">
+    <div class="win-bar">
+      <div class="tl">
+        <span style="background:#ff5f57"></span>
+        <span style="background:#febc2e"></span>
+        <span style="background:#28c840"></span>
+      </div>
+      <div class="win-title">Osmin — Mayo '25</div>
+      <div class="win-tabs">
+        <div class="win-tab on">Tabla</div>
+        <div class="win-tab">Bitácora</div>
+      </div>
+    </div>
+    <div class="win-layout">
+      <!-- Sidebar -->
+      <div class="win-sidebar">
+        <div class="sb-sect">Vista</div>
+        <div class="sb-item sel">Mes actual</div>
+        <div class="sb-item">Año 2025</div>
+        <div class="sb-item">Hábitos <span class="sb-count">4</span></div>
+        <div class="sb-item">Estadísticas</div>
+        <div class="sb-divider"></div>
+        <div class="sb-sect">Meses</div>
+        <div class="sb-item sel">Mayo '25 <span class="sb-count">31</span></div>
+        <div class="sb-item">Abr '25 <span class="sb-count">30</span></div>
+        <div class="sb-item">Mar '25 <span class="sb-count">31</span></div>
+      </div>
+      <!-- Main table -->
+      <div class="win-main" id="mockup-body">
+        <table class="htable">
+          <thead><tr id="hrow"></tr></thead>
+          <tbody id="hbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="feat-section">
+  <p class="sect-lbl fu">Por qué Osmin</p>
+  <div class="feat-grid">
+    <!-- Card 1: Tabla -->
+    <div class="feat-card fu">
+      <div class="feat-ico">
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="#2A6FDB" stroke-width="1.5" stroke-linecap="round">
+          <rect x="1.5" y="1.5" width="14" height="14" rx="3"/>
+          <path d="M1.5 6h14M6 1.5v14"/>
+        </svg>
+      </div>
+      <div class="feat-title">Tabla mensual</div>
+      <div class="feat-desc">Visualiza el mes entero de un vistazo. Marca hábitos, registra valores y anota festivos sin cambiar de pantalla.</div>
+      <div class="feat-dots" id="feat-dots"></div>
+    </div>
+    <!-- Card 2: Bitácora -->
+    <div class="feat-card fu fu-d1">
+      <div class="feat-ico">
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="#7C5CD0" stroke-width="1.5" stroke-linecap="round">
+          <path d="M3 2h8l3.5 3.5V14.5a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-12A.5.5 0 0 1 3 2z"/>
+          <path d="M11 2v4h3.5M5.5 8.5h6M5.5 11.5h4"/>
+        </svg>
+      </div>
+      <div class="feat-title">Bitácora integrada</div>
+      <div class="feat-desc">Escribe sobre cada día sin salir de la app. El contexto que siempre le falta a un tracker de hábitos clásico.</div>
+      <div class="feat-quote">"Leadership + Black Star — día redondo. Cena de equipo después."</div>
+    </div>
+    <!-- Card 3: Stats -->
+    <div class="feat-card fu fu-d2">
+      <div class="feat-ico">
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="#1F8A5B" stroke-width="1.5" stroke-linecap="round">
+          <path d="M2 13L5.5 8.5 8.5 11 12 6 15 8.5"/>
+          <path d="M2 15h13"/>
+        </svg>
+      </div>
+      <div class="feat-title">Estadísticas automáticas</div>
+      <div class="feat-desc">Rachas, medias y porcentajes calculados solos. Ninguna hoja de cálculo, ninguna fórmula.</div>
+      <div class="feat-bar-wrap" id="feat-bars">
+        <div class="feat-bar-row">
+          <span class="feat-bar-lbl">GYM</span>
+          <div class="feat-bar-track"><div class="feat-bar-fill" style="width:0%;background:#1F8A5B" data-w="68"></div></div>
+          <span class="feat-bar-val">68%</span>
+        </div>
+        <div class="feat-bar-row">
+          <span class="feat-bar-lbl">Read</span>
+          <div class="feat-bar-track"><div class="feat-bar-fill" style="width:0%;background:#7C5CD0" data-w="86"></div></div>
+          <span class="feat-bar-val">86%</span>
+        </div>
+        <div class="feat-bar-row">
+          <span class="feat-bar-lbl">Pasos</span>
+          <div class="feat-bar-track"><div class="feat-bar-fill" style="width:0%;background:#2A6FDB" data-w="74"></div></div>
+          <span class="feat-bar-val">74%</span>
+        </div>
+        <div class="feat-bar-row">
+          <span class="feat-bar-lbl">Salir</span>
+          <div class="feat-bar-track"><div class="feat-bar-fill" style="width:0%;background:#C97A2A" data-w="76"></div></div>
+          <span class="feat-bar-val">76%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats-section">
+  <div class="stats-inner">
+    <div class="stat-item fu">
+      <div class="stat-n-wrap">
+        <span class="stat-n" data-target="76">0</span>
+        <span class="stat-unit">%</span>
+      </div>
+      <div class="stat-lbl">Tasa de cumplimiento</div>
+      <div class="stat-sub">Media de hábitos en Mayo</div>
+    </div>
+    <div class="stat-item fu fu-d1">
+      <div class="stat-n-wrap">
+        <span class="stat-n" data-target="11">0</span>
+      </div>
+      <div class="stat-lbl">Días de racha</div>
+      <div class="stat-sub">Mejor racha activa</div>
+    </div>
+    <div class="stat-item fu fu-d2">
+      <div class="stat-n-wrap">
+        <span class="stat-n" data-target="100">0</span>
+        <span class="stat-unit">%</span>
+      </div>
+      <div class="stat-lbl">Datos privados</div>
+      <div class="stat-sub">Todo en tu dispositivo</div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" class="price-section">
+  <div class="price-card fu">
+    <div class="price-glow"></div>
+    <div class="price-chip">
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="var(--accent)">
+        <path d="M6 1l1.5 3.1 3.5.5-2.5 2.5.6 3.5L6 9.1l-3.1 1.5.6-3.5L1 4.6l3.5-.5z"/>
+      </svg>
+      Acceso anticipado
+    </div>
+    <p class="price-old">5 €/mes</p>
+    <div class="price-main">Gratis</div>
+    <p class="price-temp">durante el lanzamiento</p>
+    <ul class="price-list">
+      <li>Tabla mensual completa</li>
+      <li>Bitácora diaria integrada</li>
+      <li>Estadísticas y rachas automáticas</li>
+      <li>Festivos, vacaciones y hitos</li>
+      <li>Modo oscuro y claro</li>
+      <li>Datos 100% locales, sin cuenta</li>
+    </ul>
+    <p class="price-note"><strong>El precio cambiará con el lanzamiento oficial.</strong> Los primeros usuarios lo definen.</p>
+    <a href="/app" class="price-btn">Acceder ahora — es gratis</a>
+    <p class="price-fine">Sin tarjeta · Sin compromiso · Sin anuncios</p>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<section class="cta-banner">
+  <div class="cta-banner-glow"></div>
+  <h2 class="fu">¿Listo para empezar<br><em>de verdad?</em></h2>
+  <p class="fu">Únete a los primeros usuarios. Sin fricción, sin precio.</p>
+  <a href="/app" class="btn-p fu">
+    Empezar gratis ahora
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <path d="M2 6.5h9M7 2.5l4 4-4 4"/>
+    </svg>
+  </a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <a href="/" class="footer-logo" style="text-decoration:none">
+    <img src="/logo.png" alt="Osmin">
+  </a>
+  <span class="footer-copy">© 2025 Osmin</span>
+</footer>
+
+<script>
+// ── Habit table data ──
+const NDAYS = 18;
+const habits = [
+  { name:'GYM',     color:'#1F8A5B', type:'check',
+    cells:[1,0,1,1,0,0,1,0,1,1,1,0,1,0,1,0,1,1] },
+  { name:'Lectura', color:'#7C5CD0', type:'check',
+    cells:[1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1] },
+  { name:'Pasos',   color:'#2A6FDB', type:'numeric', goal:70,
+    cells:[78,92,84,79,61,42,88,94,76,81,74,68,102,86,79,65,91,88] },
+  { name:'Salir',   color:'#C97A2A', type:'check',
+    cells:[1,1,1,0,1,0,1,1,0,1,1,1,1,0,1,1,1,0] },
+];
+
+const hrow = document.getElementById('hrow');
+const th0 = document.createElement('th');
+th0.className = 'name-col';
+hrow.appendChild(th0);
+for (let i = 1; i <= NDAYS; i++) {
+  const th = document.createElement('th');
+  th.textContent = String(i).padStart(2,'0');
+  hrow.appendChild(th);
+}
+
+const hbody = document.getElementById('hbody');
+habits.forEach((h, hi) => {
+  const tr = document.createElement('tr');
+  const td0 = document.createElement('td');
+  td0.className = 'name-td';
+  td0.innerHTML = `<div class="hname"><span class="hcolor" style="background:${h.color}"></span>${h.name}</div>`;
+  tr.appendChild(td0);
+  h.cells.forEach((val, di) => {
+    const td = document.createElement('td');
+    const delay = (hi * NDAYS + di) * 24;
+    if (h.type === 'check') {
+      td.innerHTML = val
+        ? `<span class="dot" style="background:${h.color}" data-delay="${delay}"></span>`
+        : `<span class="dot-empty"></span>`;
+    } else {
+      const hit = val >= h.goal;
+      const lbl = val >= 100 ? Math.round(val/10)+'k' : (val/10).toFixed(1)+'k';
+      td.innerHTML = `<span class="num${hit?' hit':''}" data-delay="${delay}">${lbl}</span>`;
+    }
+    tr.appendChild(td);
+  });
+  hbody.appendChild(tr);
+});
+
+const tableObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.querySelectorAll('[data-delay]').forEach(el => {
+      setTimeout(() => el.classList.add('in'), +el.dataset.delay);
+    });
+    tableObs.unobserve(e.target);
+  });
+}, { threshold: 0.1 });
+tableObs.observe(document.getElementById('mockup-body'));
+
+const dotData = [
+  [1,0,1,1,0,0,1,  1,1,0,1,1,1,0,  1,0,1,1,1,0,1,  1,1,1,0,1,0,1],
+];
+const colors = ['#1F8A5B','#7C5CD0','#2A6FDB','#C97A2A'];
+const dotsContainer = document.getElementById('feat-dots');
+for (let row = 0; row < 4; row++) {
+  for (let col = 0; col < 7; col++) {
+    const idx = row * 7 + col;
+    const val = (dotData[0][idx] !== undefined) ? dotData[0][idx] : Math.random() > 0.35 ? 1 : 0;
+    const d = document.createElement('div');
+    d.className = 'feat-dot';
+    d.style.background = val ? colors[row] : 'var(--line)';
+    d.style.opacity = val ? '0.85' : '0.25';
+    dotsContainer.appendChild(d);
+  }
+}
+
+const barsObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.querySelectorAll('.feat-bar-fill[data-w]').forEach((bar, i) => {
+      setTimeout(() => { bar.style.width = bar.dataset.w + '%'; }, i * 80);
+    });
+    barsObs.unobserve(e.target);
+  });
+}, { threshold: 0.3 });
+const barsSection = document.getElementById('feat-bars');
+if (barsSection) barsObs.observe(barsSection.closest('.feat-card'));
+
+function animateCounter(el, target, duration) {
+  const start = performance.now();
+  const update = (now) => {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = Math.round(eased * target);
+    if (t < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+const statsObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.querySelectorAll('.stat-n[data-target]').forEach((el, i) => {
+      setTimeout(() => animateCounter(el, +el.dataset.target, 1200), i * 150);
+    });
+    statsObs.unobserve(e.target);
+  });
+}, { threshold: 0.3 });
+document.querySelector('.stats-section') && statsObs.observe(document.querySelector('.stats-section'));
+
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('v'); });
+}, { threshold: 0.06, rootMargin: '0px 0px -28px 0px' });
+document.querySelectorAll('.fu').forEach(el => obs.observe(el));
+</script>
 </body>
 </html>

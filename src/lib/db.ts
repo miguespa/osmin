@@ -52,6 +52,12 @@ export async function fetchAllData(supabase: SupabaseClient, userId: string): Pr
     supabase.from('ui_state').select('active_year, active_month, layout').eq('user_id', userId).maybeSingle(),
   ])
 
+  // A Supabase error here (e.g. 401) means JWT invalid or misconfigured auth.
+  // Without this check the app silently treats auth failures as "no data".
+  if (monthsRes.error) {
+    throw new Error(`fetch months: ${monthsRes.error.message} (code: ${monthsRes.error.code})`)
+  }
+
   const monthRows: DbMonth[] = monthsRes.data ?? []
 
   let months: Month[] = []
@@ -92,18 +98,43 @@ export async function fetchAllData(supabase: SupabaseClient, userId: string): Pr
 
 // ── Save a single month (full upsert) ─────────────────────────────────────────
 export async function saveMonthToDB(supabase: SupabaseClient, userId: string, month: Month): Promise<void> {
-  const { data: monthRow, error: monthErr } = await supabase
+  const { data: existingMonth } = await supabase
     .from('months')
-    .upsert({ user_id: userId, year: month.year, month: month.month }, { onConflict: 'user_id,year,month' })
     .select('id')
-    .single()
+    .eq('user_id', userId)
+    .eq('year', month.year)
+    .eq('month', month.month)
+    .maybeSingle()
 
-  if (monthErr || !monthRow) {
-    const msg = monthErr?.message ?? 'no row returned'
-    console.error('[Osmin] saveMonth — months upsert failed:', msg, monthErr)
-    throw new Error(`months upsert: ${msg}`)
+  let monthId: string
+
+  if (existingMonth) {
+    monthId = (existingMonth as { id: string }).id
+  } else {
+    // INSERT without .select() to avoid PostgREST "Prefer: return=representation"
+    // which requires a proper PK — the DB may be missing it if created with an old schema.
+    const { error: insertErr } = await supabase
+      .from('months')
+      .insert({ user_id: userId, year: month.year, month: month.month })
+    if (insertErr) {
+      console.error('[Osmin] saveMonth — months insert failed:', insertErr.message, insertErr)
+      throw new Error(`months insert: ${insertErr.message}`)
+    }
+    // Fetch the id in a separate call
+    const { data: fetched, error: fetchErr } = await supabase
+      .from('months')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('year', month.year)
+      .eq('month', month.month)
+      .maybeSingle()
+    if (fetchErr || !fetched) {
+      const msg = fetchErr?.message ?? 'row not found after insert'
+      console.error('[Osmin] saveMonth — months fetch failed:', msg)
+      throw new Error(`months insert: ${msg}`)
+    }
+    monthId = (fetched as { id: string }).id
   }
-  const monthId = monthRow.id
 
   const habitRows = month.habits.map((h, i) => ({
     month_id: monthId,
@@ -139,8 +170,14 @@ export async function saveMonthToDB(supabase: SupabaseClient, userId: string, mo
     position: i,
   }))
 
-  const { error: daysErr } = await supabase.from('days').upsert(dayRows, { onConflict: 'month_id,day' })
-  if (daysErr) console.error('[Osmin] saveMonth — days upsert failed:', daysErr.message, daysErr)
+  await supabase.from('days').delete().eq('month_id', monthId)
+  if (dayRows.length > 0) {
+    const { error: daysErr } = await supabase.from('days').insert(dayRows)
+    if (daysErr) {
+      console.error('[Osmin] saveMonth — days insert failed:', daysErr.message, daysErr)
+      throw new Error(`days insert: ${daysErr.message}`)
+    }
+  }
 
   await supabase.from('habits').delete().eq('month_id', monthId)
   if (habitRows.length > 0) {

@@ -493,8 +493,13 @@ export default function App() {
    * Si el proyecto tiene configurado un template 'supabase' en Clerk,
    * se usa ese primero (tiene el claim "role":"authenticated").
    */
-  // Integración nativa Clerk → Supabase: el JWT de sesión estándar es suficiente.
   const getClerkToken = useMemo(() => async (): Promise<string | null> => {
+    // Try the 'supabase' JWT template first (if configured in Clerk Dashboard).
+    // It includes role:"authenticated" which matches Supabase RLS expectations.
+    try {
+      const t = await getTokenRef.current({ template: 'supabase' })
+      if (t) return t
+    } catch { /* template not configured, fall through */ }
     try {
       return await getTokenRef.current() ?? null
     } catch {
@@ -566,6 +571,8 @@ export default function App() {
       setLoading(false)
     }).catch(err => {
       console.error('Failed to load data from Supabase', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      setSaveError(`Error al cargar datos — ${msg}`)
       const now = new Date()
       setMonths([buildBlankMonth(now.getFullYear(), now.getMonth())])
       setLoading(false)
