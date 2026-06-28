@@ -57,10 +57,29 @@ html[data-theme="dark"] body {
   background-size: 24px 24px;
 }
 
-#root { height: 100vh; }
+#root { height: 100vh; height: 100dvh; }
 
 button { font-family: inherit; }
 input::placeholder { color: var(--text-muted); opacity: 1; }
+
+/* ── Móvil ──────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Evita el auto-zoom de Safari iOS al enfocar inputs <16px */
+  input, select, textarea { font-size: 16px !important; }
+  /* La cuadrícula de fondo es muy densa en pantallas pequeñas */
+  body { background-size: 32px 32px; }
+}
+
+@keyframes osminSheetUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+@keyframes osminFadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+/* Feedback táctil donde antes solo había :hover */
+.month-nav:active { background: var(--surface-alt); transform: scale(0.94); }
+.overview-btn:active { transform: scale(0.97); }
+@media (hover: none) {
+  /* En táctil, los estados hover quedan "pegados"; los neutralizamos */
+  .month-nav:hover, .overview-btn:hover { background: var(--surface); color: var(--text-soft); }
+}
 
 .month-nav {
   width: 28px; height: 28px;

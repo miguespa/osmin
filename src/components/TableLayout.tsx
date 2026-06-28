@@ -94,7 +94,7 @@ function NumericCell({ value, goal, color, onChange }: { value: number; goal: nu
 
   if (editing) {
     return (
-      <input autoFocus value={draft}
+      <input autoFocus value={draft} inputMode="numeric"
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}

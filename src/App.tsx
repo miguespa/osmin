@@ -6,6 +6,8 @@ import { JournalLayout } from './components/JournalLayout'
 import { OverviewView } from './components/OverviewView'
 import { TweaksPanel, TweakSection, TweakRadio, TweakColor, useTweaks } from './components/TweaksPanel'
 import { OnboardingFlow } from './components/OnboardingFlow'
+import { BottomTabBar, type MobileTab } from './components/BottomTabBar'
+import { useIsMobile } from './hooks/useIsMobile'
 import { makeSupabaseClient } from './lib/supabase'
 import { fetchAllData, saveMonthToDB, deleteMonthFromDB, saveTweaksToDB, saveUiStateToDB, deleteAllUserData, upsertUserProfile, recordLoginEvent } from './lib/db'
 import type { Month, Tweaks, LayoutType } from './types'
@@ -202,7 +204,7 @@ function Legend() {
 }
 
 // ── MonthHeader ────────────────────────────────────────────────────────────────
-function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setViewMode, onEditHabits }: {
+function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setViewMode, onEditHabits, isMobile, onOpenMonths }: {
   month: Month
   layout: LayoutType
   setLayout: (l: LayoutType) => void
@@ -211,7 +213,24 @@ function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setVi
   viewMode: 'month' | 'overview'
   setViewMode: (m: 'month' | 'overview') => void
   onEditHabits: () => void
+  isMobile?: boolean
+  onOpenMonths?: () => void
 }) {
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '14px 16px 12px', borderBottom: '1px solid var(--line)' }}>
+        <button onClick={onPrev} className="month-nav" aria-label="Mes anterior">‹</button>
+        <button onClick={onOpenMonths} style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 8, background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
+          <h1 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 28, lineHeight: 1, color: 'var(--text)', letterSpacing: '-0.01em' }}>
+            {MONTHS_ES[month.month]}
+            <span style={{ color: 'var(--text-muted)', marginLeft: 8, fontFamily: 'JetBrains Mono, monospace', fontSize: 16 }}>'{String(month.year).slice(2)}</span>
+          </h1>
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4.5l3 3 3-3" /></svg>
+        </button>
+        <button onClick={onNext} className="month-nav" aria-label="Mes siguiente">›</button>
+      </div>
+    )
+  }
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '24px 28px 18px', borderBottom: '1px solid var(--line)' }}>
       <div>
@@ -309,11 +328,13 @@ function MilestonesStrip({ month }: { month: Month }) {
 }
 
 // ── AccountPanel ───────────────────────────────────────────────────────────────
-function AccountPanel({ months, onClose, onLogout, onDeleteAccount }: {
+function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = false, onOpenTweaks }: {
   months: Month[]
   onClose: () => void
   onLogout: () => void
   onDeleteAccount: () => Promise<void>
+  isMobile?: boolean
+  onOpenTweaks?: () => void
 }) {
   const { user } = useUser()
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? 'usuario'
@@ -381,7 +402,7 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount }: {
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.48)', backdropFilter: 'blur(3px)', animation: 'acOverlayIn 200ms ease forwards' }} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 50, width: 400, maxWidth: '95vw', background: 'var(--bg-app)', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column', overflowY: 'auto', boxShadow: '-20px 0 60px rgba(0,0,0,.4)', animation: 'acPanelIn 260ms cubic-bezier(.3,.7,.4,1) forwards' }}>
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 50, width: isMobile ? '100vw' : 400, maxWidth: isMobile ? '100vw' : '95vw', background: 'var(--bg-app)', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column', overflowY: 'auto', boxShadow: '-20px 0 60px rgba(0,0,0,.4)', animation: 'acPanelIn 260ms cubic-bezier(.3,.7,.4,1) forwards' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--bg-app)', zIndex: 2 }}>
           <img src={logoUrl} alt="Osmin" style={{ height: 22, filter: 'brightness(0) invert(1) opacity(.88)' }} />
           <button onClick={onClose} style={{ width: 30, height: 30, border: '1px solid var(--line)', background: 'transparent', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
@@ -430,6 +451,12 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount }: {
           </div>
 
           <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
+            {isMobile && onOpenTweaks && (
+              <button onClick={() => { onOpenTweaks(); onClose() }} style={{ width: '100%', padding: '14px 20px', border: 'none', borderBottom: '1px solid var(--line-soft)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'var(--text)' }}>
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="7.5" cy="7.5" r="2.2"/><path d="M7.5 1v1.6M7.5 12.4V14M1 7.5h1.6M12.4 7.5H14M3 3l1.1 1.1M10.9 10.9L12 12M3 12l1.1-1.1M10.9 4.1L12 3"/></svg>
+                Ajustes visuales
+              </button>
+            )}
             <button onClick={handleExport} style={{ width: '100%', padding: '14px 20px', border: 'none', borderBottom: '1px solid var(--line-soft)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'var(--text)', transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M7.5 1.5v8M4.5 6.5l3 3 3-3M2.5 11v1.5a1 1 0 001 1h8a1 1 0 001-1V11"/></svg>
               Exportar mis datos
@@ -473,6 +500,81 @@ function LoadingScreen() {
       <img src={logoUrl} alt="Osmin" style={{ height: 40, filter: 'brightness(0) invert(1) opacity(0.7)' }} />
       <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'var(--text-muted)' }}>Cargando…</div>
     </div>
+  )
+}
+
+// ── MobileMonthSheet ───────────────────────────────────────────────────────────
+function MobileMonthSheet({ months, activeIdx, onSelect, onDelete, onAddMonth, onClose }: {
+  months: Month[]
+  activeIdx: number
+  onSelect: (i: number) => void
+  onDelete: (i: number) => void
+  onAddMonth: (year: number, month: number) => void
+  onClose: () => void
+}) {
+  const [picker, setPicker] = useState<{ year: number; month: number } | null>(null)
+
+  const openPicker = () => {
+    const last = months[months.length - 1]
+    let m = last.month + 1, y = last.year
+    if (m > 11) { m = 0; y++ }
+    while (months.some(mo => mo.year === y && mo.month === m)) { m++; if (m > 11) { m = 0; y++ } }
+    setPicker({ year: y, month: m })
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }} />
+      <div style={{
+        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 61,
+        background: 'var(--bg-app)', borderTopLeftRadius: 18, borderTopRightRadius: 18,
+        borderTop: '1px solid var(--line)', boxShadow: '0 -12px 40px rgba(0,0,0,.3)',
+        maxHeight: '72vh', display: 'flex', flexDirection: 'column',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
+        animation: 'osminSheetUp 240ms cubic-bezier(.3,.7,.4,1)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+          <div style={{ width: 38, height: 4, borderRadius: 2, background: 'var(--line-strong)' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 18px 10px' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Meses</div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--line)', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1L1 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+        <div style={{ overflowY: 'auto', padding: '0 12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {months.map((m, i) => {
+            const sel = i === activeIdx
+            return (
+              <div key={`${m.year}-${m.month}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => { onSelect(i); onClose() }} style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '13px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', textAlign: 'left',
+                  background: sel ? 'var(--sidebar-sel)' : 'var(--surface)',
+                  fontFamily: 'Inter, sans-serif', fontSize: 15, color: sel ? 'var(--text)' : 'var(--text-soft)', fontWeight: sel ? 600 : 500,
+                }}>
+                  <span>{MONTHS_ES[m.month]} '{String(m.year).slice(2)}</span>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-muted)' }}>{m.days.length}d</span>
+                </button>
+                {months.length > 1 && (
+                  <button onClick={() => onDelete(i)} aria-label="Eliminar mes" style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 10, border: '1px solid var(--line)', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+                  </button>
+                )}
+              </div>
+            )
+          })}
+          {picker ? (
+            <NewMonthPicker suggested={picker} months={months} onConfirm={(y, m) => { onAddMonth(y, m); setPicker(null); onClose() }} onCancel={() => setPicker(null)} />
+          ) : (
+            <button onClick={openPicker} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px', marginTop: 4, borderRadius: 10, border: '1px dashed var(--line-strong)', background: 'transparent', cursor: 'pointer', color: 'var(--text-soft)', fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500 }}>
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              Nuevo mes
+            </button>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -526,6 +628,9 @@ export default function App() {
 
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showMonthSheet, setShowMonthSheet] = useState(false)
+
+  const isMobile = useIsMobile()
 
 
   // ── Sync user profile + log login event ──────────────────────────────────────
@@ -696,17 +801,39 @@ export default function App() {
 
   if (loading || !month) return <LoadingScreen />
 
+  // ── Mobile navigation derivation ──────────────────────────────────────────────
+  const tabEmail = user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? 'u'
+  const tabInitial = user?.firstName?.[0]?.toUpperCase() ?? tabEmail[0].toUpperCase()
+  const activeTab: MobileTab = showAccount ? 'cuenta'
+    : viewMode === 'overview' ? 'habitos'
+    : view === 'stats' ? 'stats'
+    : 'mes'
+  const onSelectTab = (t: MobileTab) => {
+    if (t === 'cuenta') { setShowAccount(true); return }
+    setShowAccount(false)
+    if (t === 'mes') { setView('month'); setViewMode('month') }
+    else if (t === 'habitos') { setView('month'); setViewMode('overview') }
+    else if (t === 'stats') { setViewMode('month'); setView('stats') }
+  }
+
+  // En móvil la tabla no cabe: usamos siempre la vista de tarjetas (Bitácora)
+  const effectiveLayout: LayoutType = isMobile ? 'journal' : layout
+  const padX = isMobile ? 16 : 28
+  const bottomPad = isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 78px)' : '80px'
+
   return (
-    <div style={{ width: '100%', height: '100vh', display: 'flex', overflow: 'hidden', background: 'var(--bg-app)' }}>
-      <Sidebar
-        months={months} activeIdx={activeIdx}
-        setActiveIdx={i => { setActiveIdx(i); setViewMode('month') }}
-        addMonth={addMonth} deleteMonth={deleteMonth}
-        view={view} setView={setView}
-        onOpenAccount={() => setShowAccount(true)}
-        onOpenTweaks={openTweaks}
-        onViewHabits={goToHabits}
-      />
+    <div style={{ width: '100%', height: '100%', display: 'flex', overflow: 'hidden', background: 'var(--bg-app)' }}>
+      {!isMobile && (
+        <Sidebar
+          months={months} activeIdx={activeIdx}
+          setActiveIdx={i => { setActiveIdx(i); setViewMode('month') }}
+          addMonth={addMonth} deleteMonth={deleteMonth}
+          view={view} setView={setView}
+          onOpenAccount={() => setShowAccount(true)}
+          onOpenTweaks={openTweaks}
+          onViewHabits={goToHabits}
+        />
+      )}
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <MonthHeader
@@ -715,30 +842,43 @@ export default function App() {
           onNext={() => setActiveIdx(i => Math.min(months.length - 1, i + 1))}
           viewMode={viewMode} setViewMode={setViewMode}
           onEditHabits={goToEditHabits}
+          isMobile={isMobile} onOpenMonths={() => setShowMonthSheet(true)}
         />
 
         {view === 'stats' && viewMode !== 'overview' && (
-          <div style={{ display: 'flex', gap: 12, padding: '16px 28px 0', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, padding: `16px ${padX}px 0`, flexWrap: 'wrap' }}>
             {month.habits.map(h => <StatTile key={h.id} habit={h} month={month} />)}
           </div>
         )}
 
         {viewMode !== 'overview' && (
-          <div style={{ padding: '12px 28px 0' }}>
+          <div style={{ padding: `12px ${padX}px 0` }}>
             <MilestonesStrip month={month} />
           </div>
         )}
 
-        <div style={{ flex: 1, overflow: 'auto', padding: viewMode !== 'overview' && layout === 'table' ? '0 28px 80px' : '20px 28px 80px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: viewMode !== 'overview' && effectiveLayout === 'table' ? `0 ${padX}px ${bottomPad}` : `${isMobile ? 14 : 20}px ${padX}px ${bottomPad}` }}>
           {viewMode === 'overview' ? (
-            <OverviewView month={month} setMonth={setMonth} />
-          ) : layout === 'table' ? (
+            <OverviewView month={month} setMonth={setMonth} isMobile={isMobile} />
+          ) : effectiveLayout === 'table' ? (
             <TableLayout month={month} setMonth={setMonth} density={tweaks.density} />
           ) : (
-            <JournalLayout month={month} setMonth={setMonth} density={tweaks.density} />
+            <JournalLayout month={month} setMonth={setMonth} density={tweaks.density} isMobile={isMobile} />
           )}
         </div>
       </main>
+
+      {isMobile && <BottomTabBar active={activeTab} onSelect={onSelectTab} userInitial={tabInitial} />}
+
+      {isMobile && showMonthSheet && (
+        <MobileMonthSheet
+          months={months} activeIdx={activeIdx}
+          onSelect={i => { setActiveIdx(i); setViewMode('month'); setView('month') }}
+          onDelete={deleteMonth}
+          onAddMonth={addMonth}
+          onClose={() => setShowMonthSheet(false)}
+        />
+      )}
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="Apariencia" />
@@ -761,6 +901,8 @@ export default function App() {
           onClose={() => setShowAccount(false)}
           onLogout={handleLogout}
           onDeleteAccount={handleDeleteAccount}
+          isMobile={isMobile}
+          onOpenTweaks={openTweaks}
         />
       )}
 

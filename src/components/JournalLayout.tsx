@@ -162,13 +162,23 @@ interface JournalLayoutProps {
   month: Month
   setMonth: (updater: Month | ((prev: Month) => Month)) => void
   density: string
+  isMobile?: boolean
 }
 
-export function JournalLayout({ month, setMonth, density }: JournalLayoutProps) {
+export function JournalLayout({ month, setMonth, density, isMobile = false }: JournalLayoutProps) {
   const [selected, setSelected] = useState<number | null>(null)
   const _today = new Date()
   const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
     ? _today.getDate() : null
+
+  // Un mes sin días (p. ej. dato corrupto) no debe romper la app
+  if (!month.days || month.days.length === 0) {
+    return (
+      <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif', fontSize: 13.5, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14 }}>
+        Este mes no tiene días registrados.
+      </div>
+    )
+  }
 
   const updateDay = (day: number, mut: Partial<Day>) => {
     setMonth(m => {
@@ -179,9 +189,10 @@ export function JournalLayout({ month, setMonth, density }: JournalLayoutProps) 
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16, alignItems: 'flex-start' }}>
-      <div style={{ position: 'sticky', top: 0 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px 1fr', gap: isMobile ? 12 : 16, alignItems: 'flex-start' }}>
+      <div style={{ position: isMobile ? 'static' : 'sticky', top: 0 }}>
         <MiniCalendar month={month} selectedDay={selected} onSelectDay={setSelected} todayDay={todayDay} />
+        {!isMobile && (
         <div style={{ marginTop: 12, padding: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Leyenda</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -199,6 +210,7 @@ export function JournalLayout({ month, setMonth, density }: JournalLayoutProps) 
             </div>
           ))}
         </div>
+        )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: density === 'compact' ? 6 : 10 }}>
         {month.days.map(d => (

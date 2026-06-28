@@ -235,7 +235,7 @@ function TargetEditor({ habit, onChange }: { habit: Habit; onChange: (mut: Parti
   if (habit.type === 'numeric') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <input type="number" value={habit.goal || 0}
+        <input type="number" inputMode="numeric" value={habit.goal || 0}
           onChange={e => onChange({ goal: Math.max(0, parseInt(e.target.value, 10) || 0) })}
           style={{
             width: 80, height: 26, border: '1px solid var(--line)', borderRadius: 6,
@@ -270,7 +270,33 @@ function TargetEditor({ habit, onChange }: { habit: Habit; onChange: (mut: Parti
   )
 }
 
-function HabitRow({ habit, palette, onChange, onDelete, canDelete }: { habit: Habit; palette: string[]; onChange: (mut: Partial<Habit>) => void; onDelete: () => void; canDelete: boolean }) {
+function HabitRow({ habit, palette, onChange, onDelete, canDelete, isMobile = false }: { habit: Habit; palette: string[]; onChange: (mut: Partial<Habit>) => void; onDelete: () => void; canDelete: boolean; isMobile?: boolean }) {
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <ColorDot color={habit.color} options={palette} onChange={c => onChange({ color: c })} />
+          <input value={habit.label} onChange={e => onChange({ label: e.target.value })} placeholder="Nombre del hábito" style={{ flex: 1, minWidth: 0, border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 7, padding: '8px 10px', fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500, color: 'var(--text)' }} />
+          <input value={habit.short} onChange={e => onChange({ short: e.target.value.slice(0, 7) })} maxLength={7} placeholder="Abrev." style={{ width: 64, border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 7, padding: '8px 8px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 600, color: 'var(--text)', textAlign: 'center' }} />
+          <button onClick={onDelete} disabled={!canDelete} aria-label="Eliminar hábito" style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 8, border: '1px solid var(--line)', background: 'transparent', cursor: canDelete ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', opacity: canDelete ? 1 : 0.3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', padding: 2, background: 'var(--surface-alt)', border: '1px solid var(--line)', borderRadius: 8 }}>
+            {([{ id: 'check', label: 'Check' }, { id: 'text-check', label: 'Texto' }, { id: 'numeric', label: 'Núm.' }] as { id: string; label: string }[]).map(o => (
+              <button key={o.id} onClick={() => onChange(
+                o.id === 'numeric' ? { type: 'numeric', goal: habit.goal || 7000 } :
+                o.id === 'text-check' ? { type: 'text-check', targetPerWeek: habit.targetPerWeek || 7 } :
+                { type: 'check', targetPerWeek: habit.targetPerWeek || 7 }
+              )} style={{ padding: '7px 12px', background: habit.type === o.id ? 'var(--surface)' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: habit.type === o.id ? 600 : 500, color: habit.type === o.id ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{o.label}</button>
+            ))}
+          </div>
+          <TargetEditor habit={habit} onChange={onChange} />
+        </div>
+      </div>
+    )
+  }
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.55fr 1fr 1.2fr 28px', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--line-soft)' }}>
       <ColorDot color={habit.color} options={palette} onChange={c => onChange({ color: c })} />
@@ -295,7 +321,7 @@ function HabitRow({ habit, palette, onChange, onDelete, canDelete }: { habit: Ha
   )
 }
 
-function HabitEditor({ month, setMonth }: { month: Month; setMonth: (updater: Month | ((prev: Month) => Month)) => void }) {
+function HabitEditor({ month, setMonth, isMobile = false }: { month: Month; setMonth: (updater: Month | ((prev: Month) => Month)) => void; isMobile?: boolean }) {
   const [collapsed, setCollapsed] = useState(false)
   const habits = month.habits
   const palette = ['#1F8A5B', '#7C5CD0', '#2A6FDB', '#C97A2A', '#D9445C', '#0E8E8E']
@@ -333,11 +359,13 @@ function HabitEditor({ month, setMonth }: { month: Month; setMonth: (updater: Mo
       </div>
       {!collapsed && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.55fr 1fr 1.2fr 28px', gap: 12, padding: '5px 14px 4px', borderBottom: '1px solid var(--line-soft)', fontFamily: 'Inter, sans-serif', fontSize: 9.5, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-            <div /><div>Nombre</div><div>Vista</div><div>Tipo</div><div>Target</div><div />
-          </div>
+          {!isMobile && (
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.55fr 1fr 1.2fr 28px', gap: 12, padding: '5px 14px 4px', borderBottom: '1px solid var(--line-soft)', fontFamily: 'Inter, sans-serif', fontSize: 9.5, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              <div /><div>Nombre</div><div>Vista</div><div>Tipo</div><div>Target</div><div />
+            </div>
+          )}
           {habits.map(h => (
-            <HabitRow key={h.id} habit={h} palette={palette} onChange={mut => update(h.id, mut)} onDelete={() => remove(h.id)} canDelete={habits.length > 1} />
+            <HabitRow key={h.id} habit={h} palette={palette} onChange={mut => update(h.id, mut)} onDelete={() => remove(h.id)} canDelete={habits.length > 1} isMobile={isMobile} />
           ))}
           <div style={{ padding: '10px 14px' }}>
             <button onClick={add} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px dashed var(--line-strong)', background: 'transparent', cursor: 'pointer', color: 'var(--text-soft)', fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500, width: '100%', justifyContent: 'center' }}>
@@ -370,19 +398,20 @@ function SummaryCard({ label, value, sub }: { label: string; value: string | num
 interface OverviewViewProps {
   month: Month
   setMonth: (updater: Month | ((prev: Month) => Month)) => void
+  isMobile?: boolean
 }
 
-export function OverviewView({ month, setMonth }: OverviewViewProps) {
+export function OverviewView({ month, setMonth, isMobile = false }: OverviewViewProps) {
   const totalDone = month.habits.reduce((sum, h) => sum + habitStats(month, h).done, 0)
   const totalPossible = month.habits.length * month.days.length
-  const avgPct = Math.round((totalDone / totalPossible) * 100)
+  const avgPct = totalPossible ? Math.round((totalDone / totalPossible) * 100) : 0
   const goals = month.goals || []
   const goalsDone = goals.filter(g => g.done).length
   const goalsPct = goals.length ? Math.round((goalsDone / goals.length) * 100) : 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? 8 : 12 }}>
         <SummaryCard label="Cumplimiento general" value={`${avgPct}%`} sub={`media de ${month.habits.length} hábitos`} />
         <SummaryCard label="Hitos del mes" value={`${goalsDone}/${goals.length || 0}`} sub={`${goalsPct}% completado`} />
         <SummaryCard label="Días destacados" value={month.days.filter(d => d.milestone).length} sub="marcados con ★" />
@@ -390,11 +419,11 @@ export function OverviewView({ month, setMonth }: OverviewViewProps) {
       <GoalsChecklist month={month} setMonth={setMonth} />
       <div>
         <SectionLabel>Estadísticas por hábito</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 12 }}>
           {month.habits.map(h => <OverviewStatTile key={h.id} habit={h} month={month} />)}
         </div>
       </div>
-      <HabitEditor month={month} setMonth={setMonth} />
+      <HabitEditor month={month} setMonth={setMonth} isMobile={isMobile} />
       <MonthMilestones month={month} />
     </div>
   )
