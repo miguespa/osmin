@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type Ref } from 'react'
 import { WEEKDAYS_LONG, cycleCheck } from '../data'
 import type { Month, Day, Habit } from '../types'
+import { TextCheckInput } from './TextCheckModal'
 
 function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef }: {
   day: Day
@@ -14,8 +15,19 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
   const wd = WEEKDAYS_LONG[day.weekday]
   const stColor = day.status === 'holiday' ? 'var(--c-festivo)' :
     day.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent'
+  const [textCheckHabit, setTextCheckHabit] = useState<Habit | null>(null)
 
   return (
+    <>
+    {textCheckHabit && (
+      <TextCheckInput
+        habitLabel={textCheckHabit.label}
+        currentValue={String(day.habits[textCheckHabit.id] || '')}
+        color={textCheckHabit.color}
+        onConfirm={v => { onUpdate({ habits: { ...day.habits, [textCheckHabit.id]: v } }); setTextCheckHabit(null) }}
+        onCancel={() => setTextCheckHabit(null)}
+      />
+    )}
     <div ref={innerRef} onClick={onSelect} style={{
       background: isToday ? `color-mix(in oklab, var(--accent) 5%, var(--surface))` : 'var(--surface)',
       border: selected ? '1.5px solid var(--text)' : isToday ? '1.5px solid var(--accent)' : '1px solid var(--line)',
@@ -58,8 +70,8 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
                 if (h.type === 'check') {
                   onUpdate({ habits: { ...day.habits, [h.id]: cycleCheck(v as number) } })
                 } else if (h.type === 'text-check') {
-                  const next = prompt(`${h.label} (máx. 3 letras)`, String(v || ''))
-                  if (next !== null) onUpdate({ habits: { ...day.habits, [h.id]: next.trim().toUpperCase().slice(0, 3) } })
+                  e.stopPropagation()
+                  setTextCheckHabit(h)
                 } else {
                   const next = prompt(`${h.label} (meta: ${h.goal})`, String(v || 0))
                   if (next !== null) {
@@ -89,6 +101,7 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
         </div>
       </div>
     </div>
+    </>
   )
 }
 

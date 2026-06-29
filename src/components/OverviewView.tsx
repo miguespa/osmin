@@ -1,6 +1,7 @@
 import { useState, ReactNode } from 'react'
 import { habitStats, habitStreak, MONTHS_ES } from '../data'
 import type { Month, Habit, Goal, Day } from '../types'
+import { TextCheckExplainer } from './TextCheckModal'
 
 function StarIcon({ filled = true, size = 14 }: { filled?: boolean; size?: number }) {
   return (
@@ -270,54 +271,86 @@ function TargetEditor({ habit, onChange }: { habit: Habit; onChange: (mut: Parti
   )
 }
 
+const TYPE_OPTIONS = [
+  { id: 'check', label: 'Check' },
+  { id: 'text-check', label: 'Texto' },
+  { id: 'numeric', label: 'Núm.' },
+] as const
+
 function HabitRow({ habit, palette, onChange, onDelete, canDelete, isMobile = false }: { habit: Habit; palette: string[]; onChange: (mut: Partial<Habit>) => void; onDelete: () => void; canDelete: boolean; isMobile?: boolean }) {
-  if (isMobile) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <ColorDot color={habit.color} options={palette} onChange={c => onChange({ color: c })} />
-          <input value={habit.label} onChange={e => onChange({ label: e.target.value })} placeholder="Nombre del hábito" style={{ flex: 1, minWidth: 0, border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 7, padding: '8px 10px', fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500, color: 'var(--text)' }} />
-          <input value={habit.short} onChange={e => onChange({ short: e.target.value.slice(0, 7) })} maxLength={7} placeholder="Abrev." style={{ width: 64, border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 7, padding: '8px 8px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 600, color: 'var(--text)', textAlign: 'center' }} />
-          <button onClick={onDelete} disabled={!canDelete} aria-label="Eliminar hábito" style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 8, border: '1px solid var(--line)', background: 'transparent', cursor: canDelete ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', opacity: canDelete ? 1 : 0.3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-          </button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ display: 'inline-flex', padding: 2, background: 'var(--surface-alt)', border: '1px solid var(--line)', borderRadius: 8 }}>
-            {([{ id: 'check', label: 'Check' }, { id: 'text-check', label: 'Texto' }, { id: 'numeric', label: 'Núm.' }] as { id: string; label: string }[]).map(o => (
-              <button key={o.id} onClick={() => onChange(
-                o.id === 'numeric' ? { type: 'numeric', goal: habit.goal || 7000 } :
-                o.id === 'text-check' ? { type: 'text-check', targetPerWeek: habit.targetPerWeek || 7 } :
-                { type: 'check', targetPerWeek: habit.targetPerWeek || 7 }
-              )} style={{ padding: '7px 12px', background: habit.type === o.id ? 'var(--surface)' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: habit.type === o.id ? 600 : 500, color: habit.type === o.id ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{o.label}</button>
-            ))}
-          </div>
-          <TargetEditor habit={habit} onChange={onChange} />
-        </div>
-      </div>
+  const [explainerFor, setExplainerFor] = useState<string | null>(null)
+
+  const handleTypeChange = (typeId: string) => {
+    if (typeId === 'text-check' && habit.type !== 'text-check') {
+      setExplainerFor(habit.label)
+      return
+    }
+    applyTypeChange(typeId)
+  }
+
+  const applyTypeChange = (typeId: string) => {
+    onChange(
+      typeId === 'numeric' ? { type: 'numeric', goal: habit.goal || 7000 } :
+      typeId === 'text-check' ? { type: 'text-check', targetPerWeek: habit.targetPerWeek || 7 } :
+      { type: 'check', targetPerWeek: habit.targetPerWeek || 7 }
     )
   }
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.55fr 1fr 1.2fr 28px', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--line-soft)' }}>
-      <ColorDot color={habit.color} options={palette} onChange={c => onChange({ color: c })} />
-      <input value={habit.label} onChange={e => onChange({ label: e.target.value })} placeholder="Nombre del hábito" style={{ border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 6, padding: '3px 7px', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: 'var(--text)', minWidth: 0, width: '100%', display: 'block' }} />
-      <input value={habit.short} onChange={e => onChange({ short: e.target.value.slice(0, 7) })} maxLength={7} placeholder="Abrev." title="Texto en cabecera de vista mensual" style={{ border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 6, padding: '3px 7px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 600, color: 'var(--text)', minWidth: 0, width: '100%' }} />
-      <div style={{ display: 'inline-flex', padding: 2, background: 'var(--surface-alt)', border: '1px solid var(--line)', borderRadius: 7 }}>
-        {([{ id: 'check', label: 'Check' }, { id: 'text-check', label: 'Texto' }, { id: 'numeric', label: 'Núm.' }] as { id: string; label: string }[]).map(o => (
-          <button key={o.id} onClick={() => onChange(
-            o.id === 'numeric' ? { type: 'numeric', goal: habit.goal || 7000 } :
-            o.id === 'text-check' ? { type: 'text-check', targetPerWeek: habit.targetPerWeek || 7 } :
-            { type: 'check', targetPerWeek: habit.targetPerWeek || 7 }
-          )} style={{ padding: '4px 8px', flex: 1, background: habit.type === o.id ? 'var(--surface)' : 'transparent', border: 'none', cursor: 'pointer', borderRadius: 5, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: habit.type === o.id ? 600 : 500, color: habit.type === o.id ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{o.label}</button>
-        ))}
-      </div>
-      <TargetEditor habit={habit} onChange={onChange} />
-      <button onClick={onDelete} disabled={!canDelete} title="Eliminar hábito" style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'transparent', cursor: canDelete ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', opacity: canDelete ? 0.5 : 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </button>
+
+  const TypeSwitcher = ({ compact = false }: { compact?: boolean }) => (
+    <div style={{ display: 'inline-flex', padding: 2, background: 'var(--surface-alt)', border: '1px solid var(--line)', borderRadius: compact ? 8 : 7 }}>
+      {TYPE_OPTIONS.map(o => (
+        <button key={o.id} onClick={() => handleTypeChange(o.id)} style={{
+          padding: compact ? '7px 12px' : '4px 8px', flex: 1,
+          background: habit.type === o.id ? 'var(--surface)' : 'transparent',
+          border: 'none', cursor: 'pointer', borderRadius: compact ? 6 : 5,
+          fontFamily: 'Inter, sans-serif', fontSize: compact ? 12 : 11,
+          fontWeight: habit.type === o.id ? 600 : 500,
+          color: habit.type === o.id ? 'var(--text)' : 'var(--text-muted)',
+          whiteSpace: 'nowrap',
+        }}>{o.label}</button>
+      ))}
     </div>
+  )
+
+  return (
+    <>
+      {explainerFor && (
+        <TextCheckExplainer
+          habitLabel={explainerFor}
+          onConfirm={() => { applyTypeChange('text-check'); setExplainerFor(null) }}
+          onCancel={() => setExplainerFor(null)}
+        />
+      )}
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ColorDot color={habit.color} options={palette} onChange={c => onChange({ color: c })} />
+            <input value={habit.label} onChange={e => onChange({ label: e.target.value })} placeholder="Nombre del hábito" style={{ flex: 1, minWidth: 0, border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 7, padding: '8px 10px', fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500, color: 'var(--text)' }} />
+            <input value={habit.short} onChange={e => onChange({ short: e.target.value.slice(0, 7) })} maxLength={7} placeholder="Abrev." style={{ width: 64, border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 7, padding: '8px 8px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 600, color: 'var(--text)', textAlign: 'center' }} />
+            <button onClick={onDelete} disabled={!canDelete} aria-label="Eliminar hábito" style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 8, border: '1px solid var(--line)', background: 'transparent', cursor: canDelete ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', opacity: canDelete ? 1 : 0.3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <TypeSwitcher compact />
+            <TargetEditor habit={habit} onChange={onChange} />
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '24px 1.2fr 0.55fr 1fr 1.2fr 28px', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--line-soft)' }}>
+          <ColorDot color={habit.color} options={palette} onChange={c => onChange({ color: c })} />
+          <input value={habit.label} onChange={e => onChange({ label: e.target.value })} placeholder="Nombre del hábito" style={{ border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 6, padding: '3px 7px', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: 'var(--text)', minWidth: 0, width: '100%', display: 'block' }} />
+          <input value={habit.short} onChange={e => onChange({ short: e.target.value.slice(0, 7) })} maxLength={7} placeholder="Abrev." title="Texto en cabecera de vista mensual" style={{ border: '1px solid var(--line)', outline: 'none', background: 'var(--surface-alt)', borderRadius: 6, padding: '3px 7px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 600, color: 'var(--text)', minWidth: 0, width: '100%' }} />
+          <TypeSwitcher />
+          <TargetEditor habit={habit} onChange={onChange} />
+          <button onClick={onDelete} disabled={!canDelete} title="Eliminar hábito" style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'transparent', cursor: canDelete ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', opacity: canDelete ? 0.5 : 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </>
   )
 }
 
