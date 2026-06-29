@@ -38,7 +38,7 @@ function OverviewStatTile({ habit, month }: { habit: Habit; month: Month }) {
           {habit.type === 'numeric' ? (stats.avg ?? 0).toLocaleString('es') : stats.done}
         </div>
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-muted)' }}>
-          {habit.type === 'numeric' ? 'media/día' : `de ${stats.total}`}
+          {habit.type === 'numeric' ? 'media/día' : `de ${stats.expected ?? stats.total}`}
         </div>
       </div>
       <div style={{ height: 4, borderRadius: 2, background: 'var(--line)', overflow: 'hidden' }}>
@@ -410,9 +410,9 @@ interface StatsViewProps {
 }
 
 export function StatsView({ month, isMobile = false }: StatsViewProps) {
-  const totalDone = month.habits.reduce((sum, h) => sum + habitStats(month, h).done, 0)
-  const totalPossible = month.habits.length * month.days.length
-  const avgPct = totalPossible ? Math.round((totalDone / totalPossible) * 100) : 0
+  const avgPct = month.habits.length
+    ? Math.round(month.habits.reduce((sum, h) => sum + habitStats(month, h).pct, 0) / month.habits.length)
+    : 0
   const goals = month.goals || []
   const goalsDone = goals.filter(g => g.done).length
   const goalsPct = goals.length ? Math.round((goalsDone / goals.length) * 100) : 0

@@ -107,19 +107,26 @@ export function buildBlankMonth(year: number, monthIdx: number, prevHabits?: Hab
   return { year, month: monthIdx, habits, days, goals: [] }
 }
 
+// Objetivo esperado para hábitos de marcado: target/semana × nº de semanas del mes.
+// "Todos los días" (7/sem) se mide sobre el total de días del mes.
+export function expectedForCheck(habit: Habit, daysInMonth: number): number {
+  const tpw = habit.targetPerWeek || 7
+  if (tpw >= 7) return daysInMonth
+  const weeks = Math.max(1, Math.round(daysInMonth / 7))
+  return Math.max(1, tpw * weeks)
+}
+
 export function habitStats(month: Month, habit: Habit): HabitStats {
   const days = month.days
   if (habit.type === 'check') {
     const done = days.filter(d => d.habits[habit.id] === 1).length
-    const tpw = habit.targetPerWeek || 7
-    const expected = Math.max(1, Math.round((days.length / 7) * tpw))
+    const expected = expectedForCheck(habit, days.length)
     const pct = Math.min(100, Math.round((done / expected) * 100))
     return { done, total: days.length, expected, pct }
   }
   if (habit.type === 'text-check') {
     const done = days.filter(d => { const v = d.habits[habit.id]; return typeof v === 'string' && v.length > 0 }).length
-    const tpw = habit.targetPerWeek || 7
-    const expected = Math.max(1, Math.round((days.length / 7) * tpw))
+    const expected = expectedForCheck(habit, days.length)
     const pct = Math.min(100, Math.round((done / expected) * 100))
     return { done, total: days.length, expected, pct }
   }
