@@ -116,7 +116,10 @@ export async function saveMonthToDB(supabase: SupabaseClient, userId: string, mo
     const { error: insertErr } = await supabase
       .from('months')
       .insert({ user_id: userId, year: month.year, month: month.month })
-    if (insertErr) {
+    // Code 23505 = unique_violation on months_user_year_month. The row already
+    // exists (in-memory state was out of sync); recover by fetching its id below
+    // instead of failing the whole save.
+    if (insertErr && insertErr.code !== '23505') {
       console.error('[Osmin] saveMonth — months insert failed:', insertErr.message, insertErr)
       throw new Error(`months insert: ${insertErr.message}`)
     }
@@ -170,8 +173,9 @@ export async function saveMonthToDB(supabase: SupabaseClient, userId: string, mo
     position: i,
   }))
 
-  await supabase.from('days').delete().eq('month_id', monthId)
+  // Same guard as habits: never wipe days for an empty in-memory set (corrupt load).
   if (dayRows.length > 0) {
+    await supabase.from('days').delete().eq('month_id', monthId)
     const { error: daysErr } = await supabase.from('days').insert(dayRows)
     if (daysErr) {
       console.error('[Osmin] saveMonth — days insert failed:', daysErr.message, daysErr)
@@ -179,10 +183,16 @@ export async function saveMonthToDB(supabase: SupabaseClient, userId: string, mo
     }
   }
 
-  await supabase.from('habits').delete().eq('month_id', monthId)
+  // Guard: an empty habit set almost always means a failed/partial load, not a
+  // genuine state (the UI never lets you delete the last habit). Skipping the
+  // delete+insert here prevents silently wiping the user's real habits.
   if (habitRows.length > 0) {
+    await supabase.from('habits').delete().eq('month_id', monthId)
     const { error: habitsErr } = await supabase.from('habits').insert(habitRows)
-    if (habitsErr) console.error('[Osmin] saveMonth — habits insert failed:', habitsErr.message, habitsErr)
+    if (habitsErr) {
+      console.error('[Osmin] saveMonth — habits insert failed:', habitsErr.message, habitsErr)
+      throw new Error(`habits insert: ${habitsErr.message}`)
+    }
   }
 
   await supabase.from('goals').delete().eq('month_id', monthId)
