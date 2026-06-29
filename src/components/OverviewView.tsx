@@ -1,6 +1,6 @@
 import { useState, ReactNode } from 'react'
 import { habitStats, habitStreak, MONTHS_ES } from '../data'
-import type { Month, Habit, Goal } from '../types'
+import type { Month, Habit, Goal, Day } from '../types'
 
 function StarIcon({ filled = true, size = 14 }: { filled?: boolean; size?: number }) {
   return (
@@ -403,6 +403,125 @@ function EmptyHint({ text }: { text: string }) {
   )
 }
 
+// Calendario del mes — solo lectura, refleja hábitos cumplidos y días destacados
+function StatsCalendar({ month }: { month: Month }) {
+  if (!month.days || month.days.length === 0) return null
+  const _today = new Date()
+  const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
+    ? _today.getDate() : null
+  const firstDay = month.days[0].weekday
+  const offset = firstDay === 0 ? 6 : firstDay - 1
+  const cells: (Day | null)[] = []
+  for (let i = 0; i < offset; i++) cells.push(null)
+  for (const d of month.days) cells.push(d)
+  while (cells.length % 7 !== 0) cells.push(null)
+  const wdHeaders = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 22, color: 'var(--text)' }}>Calendario del mes</h3>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-muted)' }}>puntos = hábitos cumplidos · ★ destacado</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 }}>
+        {wdHeaders.map((w, i) => (
+          <div key={i} style={{
+            textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+            color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>{w}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />
+          const isToday = d.day === todayDay
+          const bg = d.status === 'holiday' ? 'var(--c-festivo)' :
+            d.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent'
+          const habitDots = month.habits.map((h: Habit) => {
+            const v = d.habits[h.id]
+            const ok = h.type === 'check' ? v === 1
+              : h.type === 'text-check' ? (typeof v === 'string' && v.length > 0)
+              : (Number(v) || 0) >= (h.goal ?? 0)
+            return ok ? h.color : null
+          })
+          return (
+            <div key={i} style={{
+              aspectRatio: '1', padding: 4,
+              background: isToday && bg === 'transparent'
+                ? `color-mix(in oklab, var(--accent) 10%, var(--surface))` : bg,
+              border: isToday ? '1.5px solid var(--accent)' : '1px solid var(--line-soft)',
+              borderRadius: 8,
+              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'space-between',
+              position: 'relative',
+            }}>
+              <div style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 600,
+                color: bg !== 'transparent' ? '#1a1a1a' : isToday ? 'var(--accent)' : 'var(--text)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>{d.day}</div>
+              {d.milestone && <div style={{ position: 'absolute', top: 3, right: 3, width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />}
+              <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                {habitDots.map((c, j) => (
+                  <div key={j} style={{ width: 5, height: 5, borderRadius: '50%', background: c || 'transparent', border: c ? 'none' : '1px solid var(--line)' }} />
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Hitos del mes — solo lectura, muestra los objetivos conseguidos o no
+function MilestonesAchieved({ month }: { month: Month }) {
+  const goals = month.goals || []
+  const done = goals.filter(g => g.done).length
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: '16px 18px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 22, color: 'var(--text)' }}>Hitos del mes</h3>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{done}/{goals.length}</div>
+      </div>
+      {goals.length === 0 ? (
+        <div style={{ padding: '24px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+          Aún no has definido hitos. Añádelos desde «Editar».
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {goals.map(g => (
+            <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', borderBottom: '1px solid var(--line-soft)' }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                border: `1.5px solid ${g.done ? 'var(--accent)' : 'var(--line-strong)'}`,
+                background: g.done ? 'var(--accent)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {g.done ? (
+                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 7.5L5.8 10L11 4.5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                    <path d="M3 3l6 6M9 3l-6 6" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                )}
+              </div>
+              <div style={{
+                flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+                color: g.done ? 'var(--text-muted)' : 'var(--text)',
+                textDecoration: g.done ? 'line-through' : 'none',
+              }}>
+                {g.text || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(sin descripción)</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Vista de estadísticas (consecución) — solo lectura ──────────────────────────
 interface StatsViewProps {
   month: Month
@@ -427,6 +546,7 @@ export function StatsView({ month, isMobile = false }: StatsViewProps) {
         <SummaryCard label="Hitos del mes" value={`${goalsDone}/${goals.length || 0}`} sub={`${goalsPct}% completado`} />
         <SummaryCard label="Días destacados" value={milestoneDays} sub="marcados con ★" />
       </div>
+      <StatsCalendar month={month} />
       <div>
         <SectionLabel>Estadísticas por hábito</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 12 }}>
@@ -435,6 +555,7 @@ export function StatsView({ month, isMobile = false }: StatsViewProps) {
             : month.habits.map(h => <OverviewStatTile key={h.id} habit={h} month={month} />)}
         </div>
       </div>
+      <MilestonesAchieved month={month} />
       <MonthMilestones month={month} />
     </div>
   )
