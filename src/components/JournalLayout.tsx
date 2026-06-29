@@ -133,28 +133,7 @@ export function JournalLayout({ month, setMonth, density, isMobile = false }: Jo
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '260px 1fr', gap: isMobile ? 12 : 16, alignItems: 'flex-start' }}>
-      {!isMobile && (
-      <div style={{ position: 'sticky', top: 0 }}>
-        <div style={{ padding: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Leyenda</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-festivo)' }} />
-            <span>Festivo / fin de semana</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-vacaciones)' }} />
-            <span>Vacaciones</span>
-          </div>
-          {month.habits.map(h => (
-            <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: h.color }} />
-              <span>{h.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      )}
+    <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: density === 'compact' ? 6 : 10 }}>
         {month.days.map(d => (
           <DayCard key={d.day} day={d} habits={month.habits}
