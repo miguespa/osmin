@@ -8,10 +8,9 @@ export const MONTHS_ES = [
 ]
 
 export const DEFAULT_HABITS: Habit[] = [
-  { id: 'gym',   label: 'GYM',        short: 'GYM',   type: 'check',   targetPerWeek: 3, color: '#1F8A5B' },
-  { id: 'read',  label: 'Lectura',    short: 'Read',  type: 'check',   targetPerWeek: 7, color: '#7C5CD0' },
-  { id: 'steps', label: 'Pasos',      short: 'Steps', type: 'numeric', goal: 7000, unit: '', color: '#2A6FDB' },
-  { id: 'leave', label: 'Salir <19h', short: 'Out',   type: 'check',   targetPerWeek: 5, color: '#C97A2A' },
+  { id: 'gym',   label: 'GYM',     short: 'GYM',   type: 'check',   targetPerWeek: 3, color: '#1F8A5B' },
+  { id: 'read',  label: 'Lectura', short: 'Leer',  type: 'check',   targetPerWeek: 5, color: '#7C5CD0' },
+  { id: 'steps', label: 'Pasos',   short: 'Pasos', type: 'numeric', goal: 8000, unit: '', color: '#2A6FDB' },
 ]
 
 export const DAY_STATUS: Record<string, DayStatus> = {
@@ -31,7 +30,7 @@ export function buildSampleMonth(): Month {
       day: i, weekday: wd,
       status: isWeekend ? 'holiday' : 'work',
       highlight: '', milestone: false,
-      habits: { gym: 0, read: 0, steps: 0, leave: 0 },
+      habits: { gym: 0, read: 0, steps: 0 },
     })
   }
   const set = (d: number, props: Partial<Day>) => Object.assign(days[d - 1], props)
@@ -58,7 +57,6 @@ export function buildSampleMonth(): Month {
 
   const gymDays   = [2, 3, 4, 5, 9, 10, 11, 12, 13, 16]
   const readDays  = [1, 2, 4, 5, 6, 9, 11, 13, 14, 15, 22, 24, 27, 29]
-  const leaveDays = [2, 3, 4, 5, 9, 10, 11, 12, 13, 16, 19]
   const steps: Record<number, number> = {
     1: 6800, 2: 8400, 3: 9200, 4: 7900, 5: 8800, 6: 11200, 7: 14600, 8: 9100,
     9: 8200, 10: 7600, 11: 9400, 12: 8900, 13: 10200, 14: 6300, 15: 5400,
@@ -68,7 +66,6 @@ export function buildSampleMonth(): Month {
   }
   for (const d of gymDays)   days[d - 1].habits.gym = 1
   for (const d of readDays)  days[d - 1].habits.read = 1
-  for (const d of leaveDays) days[d - 1].habits.leave = 1
   for (const [d, v] of Object.entries(steps)) days[+d - 1].habits.steps = v
   set(24, { status: 'holiday' })
   set(25, { status: 'holiday' })
@@ -87,7 +84,7 @@ export function buildSampleMonth(): Month {
   }
 }
 
-export function buildBlankMonth(year: number, monthIdx: number, prevHabits?: Habit[]): Month {
+export function buildBlankMonth(year: number, monthIdx: number, prevHabits?: Habit[], prevGoals?: import('./types').Goal[]): Month {
   const habits = (prevHabits || DEFAULT_HABITS).map(h => ({ ...h }))
   const firstWeekday = new Date(year, monthIdx, 1).getDay()
   const daysInMonth = new Date(year, monthIdx + 1, 0).getDate()
@@ -104,7 +101,11 @@ export function buildBlankMonth(year: number, monthIdx: number, prevHabits?: Hab
       habits: habitValues,
     })
   }
-  return { year, month: monthIdx, habits, days, goals: [] }
+  // Arrastra los hitos no conseguidos del mes anterior con un id nuevo
+  const pendingGoals = (prevGoals ?? [])
+    .filter(g => !g.done)
+    .map(g => ({ ...g, id: 'g' + Date.now() + Math.random().toString(36).slice(2), done: false }))
+  return { year, month: monthIdx, habits, days, goals: pendingGoals }
 }
 
 // Objetivo esperado para hábitos de marcado: target/semana × nº de semanas del mes.

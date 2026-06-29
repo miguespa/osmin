@@ -451,12 +451,12 @@ function StatsCalendar({ month }: { month: Month }) {
   const wdHeaders = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: '16px 20px 20px' }}>
+      <div style={{ marginBottom: 10 }}>
         <h3 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 22, color: 'var(--text)' }}>Calendario del mes</h3>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-muted)' }}>puntos = hábitos cumplidos · ★ destacado</div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 }}>
+      <div style={{ maxWidth: 420 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
         {wdHeaders.map((w, i) => (
           <div key={i} style={{
             textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
@@ -477,6 +477,7 @@ function StatsCalendar({ month }: { month: Month }) {
               : (Number(v) || 0) >= (h.goal ?? 0)
             return ok ? h.color : null
           })
+          const allDone = month.habits.length > 0 && habitDots.every(c => c !== null)
           return (
             <div key={i} style={{
               aspectRatio: '1', padding: 4,
@@ -492,7 +493,10 @@ function StatsCalendar({ month }: { month: Month }) {
                 color: bg !== 'transparent' ? '#1a1a1a' : isToday ? 'var(--accent)' : 'var(--text)',
                 fontVariantNumeric: 'tabular-nums',
               }}>{d.day}</div>
-              {d.milestone && <div style={{ position: 'absolute', top: 3, right: 3, width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />}
+              {allDone
+                ? <div style={{ position: 'absolute', top: 1, right: 2, fontSize: 8, lineHeight: 1 }}>🔥</div>
+                : d.milestone && <div style={{ position: 'absolute', top: 3, right: 3, width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
+              }
               <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 {habitDots.map((c, j) => (
                   <div key={j} style={{ width: 5, height: 5, borderRadius: '50%', background: c || 'transparent', border: c ? 'none' : '1px solid var(--line)' }} />
@@ -502,29 +506,46 @@ function StatsCalendar({ month }: { month: Month }) {
           )
         })}
       </div>
+      </div>
     </div>
   )
 }
 
 // Leyenda de colores — festivos, vacaciones y hábitos
-function StatsLegend({ month }: { month: Month }) {
+function StatsLegend({ month, isMobile }: { month: Month; isMobile?: boolean }) {
   return (
-    <div style={{ padding: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>Leyenda</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-festivo)' }} />
+    <div style={{
+      padding: '10px 16px',
+      background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 12,
+      fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)',
+      display: 'flex', flexWrap: 'wrap', gap: isMobile ? '8px 16px' : '6px 24px',
+      alignItems: 'center',
+    }}>
+      <div style={{ fontWeight: 600, color: 'var(--text)', marginRight: 4 }}>Leyenda</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-festivo)', flexShrink: 0 }} />
         <span>Festivo / fin de semana</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-vacaciones)' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ width: 14, height: 10, borderRadius: 3, background: 'var(--c-vacaciones)', flexShrink: 0 }} />
         <span>Vacaciones</span>
       </div>
       {month.habits.map(h => (
-        <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: h.color }} />
+        <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: h.color, flexShrink: 0 }} />
           <span>{h.label}</span>
         </div>
       ))}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 10, lineHeight: 1 }}>🔥</span>
+        <span>Todos los hábitos</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <svg width="9" height="9" viewBox="0 0 14 14" fill="var(--accent)">
+          <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z"/>
+        </svg>
+        <span>Día destacado</span>
+      </div>
     </div>
   )
 }
@@ -602,9 +623,9 @@ export function StatsView({ month, isMobile = false }: StatsViewProps) {
         <SummaryCard label="Hitos del mes" value={`${goalsDone}/${goals.length || 0}`} sub={`${goalsPct}% completado`} />
         <SummaryCard label="Días destacados" value={milestoneDays} sub="marcados con ★" />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: isMobile ? 12 : 16, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <StatsCalendar month={month} />
-        <StatsLegend month={month} />
+        <StatsLegend month={month} isMobile={isMobile} />
       </div>
       <div>
         <SectionLabel>Estadísticas por hábito</SectionLabel>

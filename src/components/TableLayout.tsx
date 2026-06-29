@@ -129,7 +129,7 @@ function NumericCell({ value, goal, color, onChange }: { value: number; goal: nu
 export function HighlightInput({ value, milestone, onChange, onToggleMilestone }: { value: string; milestone: boolean; onChange: (v: string) => void; onToggleMilestone: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-      <button onClick={onToggleMilestone} title="Marcar como hito del mes" style={{
+      <button onClick={onToggleMilestone} title="Marcar como día destacado" style={{
         width: 18, height: 18, padding: 0, border: 'none',
         background: 'transparent', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',

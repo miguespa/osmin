@@ -715,7 +715,8 @@ export default function App() {
     // Si el último mes quedó sin hábitos (carga parcial), no propagamos el set vacío:
     // buildBlankMonth cae a DEFAULT_HABITS cuando prevHabits es undefined.
     const seedHabits = last?.habits?.length ? last.habits : undefined
-    const newMonth = buildBlankMonth(year, monthIdx, seedHabits)
+    const seedGoals = last?.goals?.filter(g => !g.done)
+    const newMonth = buildBlankMonth(year, monthIdx, seedHabits, seedGoals)
     setMonths(ms => [...ms, newMonth])
     setActiveIdx(newIdx)
     setViewMode('month')

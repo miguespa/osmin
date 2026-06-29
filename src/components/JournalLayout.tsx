@@ -3,6 +3,33 @@ import { WEEKDAYS_LONG, cycleCheck } from '../data'
 import type { Month, Day, Habit } from '../types'
 import { TextCheckInput } from './TextCheckModal'
 
+const PLACEHOLDERS_WEEKDAY = [
+  'Cuéntame, ¿cómo ha ido hoy? 👀',
+  '¿Qué ha sido lo más destacado del día? 📝',
+  '¿Cómo ha ido la jornada? ☕',
+  '¿Algo que contar de hoy? 💬',
+  '¿Qué tal ha salido el día? ✨',
+  '¿Qué me llevaría de hoy? 🌿',
+  '¿Hubo algún momento que mereció la pena? 🔍',
+  '¿Qué ha marcado la diferencia hoy? 💡',
+  '¿Cómo te ha tratado el día? 🗓️',
+]
+
+const PLACEHOLDERS_WEEKEND = [
+  '¿Qué tal todo por ahí? 🙂',
+  '¿Día tranquilo o movidito? Cuéntame 📝',
+  '¿Qué ha sido lo más épico de hoy? 🚀',
+  '¿Cómo ha ido el finde? ☀️',
+  '¿Algo especial para recordar? 🎉',
+  '¿Qué plan ha salido bien hoy? 🏖️',
+]
+
+function getPlaceholder(weekday: number, day: number): string {
+  const isWeekend = weekday === 0 || weekday === 6
+  const pool = isWeekend ? PLACEHOLDERS_WEEKEND : PLACEHOLDERS_WEEKDAY
+  return pool[day % pool.length]
+}
+
 function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef }: {
   day: Day
   habits: Habit[]
@@ -16,6 +43,13 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
   const stColor = day.status === 'holiday' ? 'var(--c-festivo)' :
     day.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent'
   const [textCheckHabit, setTextCheckHabit] = useState<Habit | null>(null)
+
+  const allDone = habits.length > 0 && habits.every(h => {
+    const v = day.habits[h.id]
+    return h.type === 'check' ? v === 1
+      : h.type === 'text-check' ? (typeof v === 'string' && v.length > 0)
+      : (Number(v) || 0) >= (h.goal ?? 0)
+  })
 
   return (
     <>
@@ -41,6 +75,7 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
           {wd.slice(0, 3)}
         </div>
         {stColor !== 'transparent' && <div style={{ width: 24, height: 4, borderRadius: 2, background: stColor, marginTop: 4 }} />}
+        {allDone && <span style={{ fontSize: 13, lineHeight: 1, marginTop: 2 }}>🔥</span>}
       </div>
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -51,7 +86,7 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
             </svg>
           )}
           <input value={day.highlight} onChange={e => onUpdate({ highlight: e.target.value })}
-            placeholder="Escribe el highlight del día…" onClick={e => e.stopPropagation()}
+            placeholder={getPlaceholder(day.weekday, day.day)} onClick={e => e.stopPropagation()}
             style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontFamily: 'Inter, sans-serif', fontSize: 14.5, color: day.highlight ? 'var(--text)' : 'var(--text-muted)', padding: 0 }}
           />
         </div>
