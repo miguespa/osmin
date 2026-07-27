@@ -56,6 +56,34 @@ function NewMonthPicker({ suggested, months, onConfirm, onCancel }: {
   )
 }
 
+// ── NextMonthPrompt ────────────────────────────────────────────────────────────
+// Se abre al pulsar «›» cuando el mes siguiente todavía no existe: en vez de que
+// la flecha no haga nada, ofrece crearlo sin salir de la vista del mes.
+function NextMonthPrompt({ suggested, months, onConfirm, onCancel }: {
+  suggested: { year: number; month: number }
+  months: Month[]
+  onConfirm: (year: number, month: number) => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  return (
+    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 18, padding: '22px 22px 16px', maxWidth: 320, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.3)' }}>
+        <h2 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 25, lineHeight: 1.1, color: 'var(--text)' }}>Crear mes nuevo</h2>
+        <div style={{ marginTop: 7, fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Todavía no tienes <b style={{ color: 'var(--text)' }}>{MONTHS_ES[suggested.month]} '{String(suggested.year).slice(2)}</b>. Créalo para seguir registrando — heredará los hábitos y los hitos pendientes del mes anterior.
+        </div>
+        <NewMonthPicker suggested={suggested} months={months} onConfirm={onConfirm} onCancel={onCancel} />
+      </div>
+    </div>
+  )
+}
+
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, viewMode, onNav, onOpenAccount, onOpenTweaks }: {
   months: Month[]
@@ -592,6 +620,7 @@ export default function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showMonthSheet, setShowMonthSheet] = useState(false)
+  const [nextMonthPrompt, setNextMonthPrompt] = useState<{ year: number; month: number } | null>(null)
 
   const isMobile = useIsMobile()
 
@@ -633,7 +662,7 @@ export default function App() {
         const now = new Date()
         const blank = buildBlankMonth(now.getFullYear(), now.getMonth())
         setMonths([blank])
-        saveMonthToDB(supabase, userId!, blank).catch(console.error)
+        saveMonthSerialized(blank, 'initial-fetch').catch(console.error)
         if (!localStorage.getItem('osmin_onboarding_v1')) {
           setShowOnboarding(true)
         }
@@ -660,6 +689,24 @@ export default function App() {
   // ── Debounced Supabase saves ──────────────────────────────────────────────────
   const lastSavedMonths = useRef<Map<string, Month>>(new Map())
 
+  // Per-month save lock: guarantees two saves for the same month (e.g. the direct
+  // save fired by addMonth and the debounced autosave below) never run concurrently.
+  // The atomic `save_month` RPC already makes a single save race-proof server-side;
+  // this queues redundant client-side saves so they don't do duplicate round-trips
+  // (and duplicate month_snapshots rows) for what is really one logical change.
+  const monthSaveLocks = useRef<Map<string, Promise<void>>>(new Map())
+
+  const saveMonthSerialized = (m: Month, source: string): Promise<void> => {
+    if (!userId) return Promise.resolve()
+    const key = `${m.year}-${m.month}`
+    const prevInFlight = monthSaveLocks.current.get(key) ?? Promise.resolve()
+    const run = prevInFlight.catch(() => {}).then(() => saveMonthToDB(supabase, userId, m, source))
+    monthSaveLocks.current.set(key, run)
+    return run.finally(() => {
+      if (monthSaveLocks.current.get(key) === run) monthSaveLocks.current.delete(key)
+    })
+  }
+
   useEffect(() => {
     if (loading || !userId || months.length === 0) return
     const timer = setTimeout(async () => {
@@ -667,7 +714,7 @@ export default function App() {
       const toSave = months.filter(m => prev.get(`${m.year}-${m.month}`) !== m)
       for (const m of toSave) {
         try {
-          await saveMonthToDB(supabase, userId, m)
+          await saveMonthSerialized(m, 'debounced-autosave')
           lastSavedMonths.current.set(`${m.year}-${m.month}`, m)
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
@@ -709,6 +756,17 @@ export default function App() {
     })
   }
 
+  // «›» avanza al mes siguiente en el calendario, no al siguiente de la lista: si
+  // ese mes aún no existe, en vez de dejar la flecha muerta ofrecemos crearlo.
+  const goToNextMonth = () => {
+    const next = month.month === 11
+      ? { year: month.year + 1, month: 0 }
+      : { year: month.year, month: month.month + 1 }
+    const idx = months.findIndex(m => m.year === next.year && m.month === next.month)
+    if (idx >= 0) setActiveIdx(idx)
+    else setNextMonthPrompt(next)
+  }
+
   const addMonth = (year: number, monthIdx: number) => {
     const last = months[months.length - 1]
     const newIdx = months.length
@@ -720,7 +778,12 @@ export default function App() {
     setMonths(ms => [...ms, newMonth])
     setActiveIdx(newIdx)
     setViewMode('month')
-    if (userId) saveMonthToDB(supabase, userId, newMonth).catch(console.error)
+    // Mark as already-saved-as-of-this-object before firing the save, so the
+    // debounced autosave effect (which also reacts to `months` changing) sees
+    // this exact reference as "nothing to do" and doesn't fire a second,
+    // redundant save for the same brand-new month.
+    lastSavedMonths.current.set(`${year}-${monthIdx}`, newMonth)
+    if (userId) saveMonthSerialized(newMonth, 'addMonth').catch(console.error)
   }
 
   const deleteMonth = (idx: number) => {
@@ -796,7 +859,7 @@ export default function App() {
         <MonthHeader
           month={month} layout={layout} setLayout={setLayout}
           onPrev={() => setActiveIdx(i => Math.max(0, i - 1))}
-          onNext={() => setActiveIdx(i => Math.min(months.length - 1, i + 1))}
+          onNext={goToNextMonth}
           viewMode={viewMode} setViewMode={setViewMode}
           onEditHabits={goToEditHabits}
           isMobile={isMobile} onOpenMonths={() => setShowMonthSheet(true)}
@@ -822,6 +885,15 @@ export default function App() {
       </main>
 
       {isMobile && <BottomTabBar active={activeTab} onSelect={onSelectTab} userInitial={tabInitial} />}
+
+      {nextMonthPrompt && (
+        <NextMonthPrompt
+          suggested={nextMonthPrompt}
+          months={months}
+          onConfirm={(y, m) => { addMonth(y, m); setNextMonthPrompt(null) }}
+          onCancel={() => setNextMonthPrompt(null)}
+        />
+      )}
 
       {isMobile && showMonthSheet && (
         <MobileMonthSheet

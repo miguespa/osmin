@@ -30,6 +30,84 @@ function getPlaceholder(weekday: number, day: number): string {
   return pool[day % pool.length]
 }
 
+// ── Editor de nota ─────────────────────────────────────────────────────────────
+// El campo del diario es de una sola línea: cuando el texto no cabe entero (muy
+// habitual en móvil) resulta ilegible, así que se abre aquí a pantalla completa
+// para poder releerlo y editarlo cómodamente.
+function NoteEditor({ dayLabel, value, placeholder, onConfirm, onCancel }: {
+  dayLabel: string
+  value: string
+  placeholder: string
+  onConfirm: (v: string) => void
+  onCancel: () => void
+}) {
+  const [draft, setDraft] = useState(value)
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  return (
+    <div onClick={onCancel} style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--surface)', border: '1px solid var(--line)',
+        borderRadius: 18, padding: '20px 20px 16px', maxWidth: 460, width: '100%',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+      }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+          {dayLabel}
+        </div>
+        <textarea
+          ref={ref}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onConfirm(draft) }}
+          placeholder={placeholder}
+          rows={7}
+          style={{
+            width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 150,
+            borderRadius: 12, border: '1px solid var(--line-strong)',
+            background: 'var(--surface-alt)', padding: '12px 14px',
+            fontFamily: 'Inter, sans-serif', fontSize: 15, lineHeight: 1.55,
+            color: 'var(--text)', outline: 'none',
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <button onClick={onCancel} style={{
+            flex: 1, padding: '9px 14px', borderRadius: 10,
+            border: '1px solid var(--line)', background: 'transparent',
+            fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer',
+          }}>
+            Cancelar
+          </button>
+          <button onClick={() => onConfirm(draft)} style={{
+            flex: 1, padding: '9px 14px', borderRadius: 10,
+            border: 'none', background: 'var(--accent)',
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600,
+            color: '#fff', cursor: 'pointer',
+          }}>
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef }: {
   day: Day
   habits: Habit[]
@@ -43,6 +121,19 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
   const stColor = day.status === 'holiday' ? 'var(--c-festivo)' :
     day.status === 'vacation' ? 'var(--c-vacaciones)' : 'transparent'
   const [textCheckHabit, setTextCheckHabit] = useState<Habit | null>(null)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const highlightRef = useRef<HTMLInputElement>(null)
+
+  // Si el texto desborda el ancho visible del campo no se puede leer entero:
+  // en ese caso lo abrimos como nota en vez de editarlo en una sola línea.
+  // Medimos el desbordamiento real en lugar de contar caracteres, así se adapta
+  // solo al ancho de cada pantalla.
+  const openNoteIfClipped = () => {
+    const el = highlightRef.current
+    if (!el || el.scrollWidth <= el.clientWidth + 1) return
+    el.blur()
+    setNoteOpen(true)
+  }
 
   const allDone = habits.length > 0 && habits.every(h => {
     const v = day.habits[h.id]
@@ -60,6 +151,15 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
         color={textCheckHabit.color}
         onConfirm={v => { onUpdate({ habits: { ...day.habits, [textCheckHabit.id]: v } }); setTextCheckHabit(null) }}
         onCancel={() => setTextCheckHabit(null)}
+      />
+    )}
+    {noteOpen && (
+      <NoteEditor
+        dayLabel={`${wd} ${day.day}`}
+        value={day.highlight}
+        placeholder={getPlaceholder(day.weekday, day.day)}
+        onConfirm={v => { onUpdate({ highlight: v }); setNoteOpen(false) }}
+        onCancel={() => setNoteOpen(false)}
       />
     )}
     <div ref={innerRef} onClick={onSelect} style={{
@@ -85,9 +185,11 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
               <path d="M7 1.5L8.7 5l3.8.5-2.8 2.6.7 3.8L7 10.1 3.6 12l.7-3.8L1.5 5.5 5.3 5z"/>
             </svg>
           )}
-          <input value={day.highlight} onChange={e => onUpdate({ highlight: e.target.value })}
-            placeholder={getPlaceholder(day.weekday, day.day)} onClick={e => e.stopPropagation()}
-            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontFamily: 'Inter, sans-serif', fontSize: 14.5, color: day.highlight ? 'var(--text)' : 'var(--text-muted)', padding: 0 }}
+          <input ref={highlightRef} value={day.highlight} onChange={e => onUpdate({ highlight: e.target.value })}
+            placeholder={getPlaceholder(day.weekday, day.day)}
+            onClick={e => { e.stopPropagation(); openNoteIfClipped() }}
+            onFocus={openNoteIfClipped}
+            style={{ flex: 1, minWidth: 0, textOverflow: 'ellipsis', border: 'none', outline: 'none', background: 'transparent', fontFamily: 'Inter, sans-serif', fontSize: 14.5, color: day.highlight ? 'var(--text)' : 'var(--text-muted)', padding: 0 }}
           />
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -114,7 +216,7 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
                     onUpdate({ habits: { ...day.habits, [h.id]: isNaN(n) ? 0 : n } })
                   }
                 }
-              }} style={{
+              }} title={h.label} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '4px 10px', borderRadius: 999,
                 border: `1px solid ${tinted ? h.color : 'var(--line)'}`,
@@ -123,7 +225,14 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
                 color: tinted ? 'var(--text)' : 'var(--text-muted)', cursor: 'pointer',
               }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: tinted ? h.color : 'var(--line-strong)' }} />
-                <span>{h.short}</span>
+                {/* En text-check el texto escrito sustituye al nombre del hábito: es
+                    el dato que interesa de un vistazo. El punto de color (y el title)
+                    siguen identificando de qué hábito se trata. */}
+                {h.type === 'text-check' && ok ? (
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, letterSpacing: '0.04em', color: h.color }}>{String(v)}</span>
+                ) : (
+                  <span>{h.short}</span>
+                )}
                 {h.type === 'numeric' && (
                   <span style={{ fontFamily: 'JetBrains Mono, monospace', fontVariantNumeric: 'tabular-nums', color: tinted ? 'var(--text)' : 'var(--text-muted)' }}>
                     {v ? v.toLocaleString('es') : '—'}

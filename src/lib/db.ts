@@ -96,52 +96,15 @@ export async function fetchAllData(supabase: SupabaseClient, userId: string): Pr
   return { months, tweaks, uiState }
 }
 
-// ── Save a single month (full upsert) ─────────────────────────────────────────
-export async function saveMonthToDB(supabase: SupabaseClient, userId: string, month: Month): Promise<void> {
-  const { data: existingMonth } = await supabase
-    .from('months')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('year', month.year)
-    .eq('month', month.month)
-    .maybeSingle()
-
-  let monthId: string
-
-  if (existingMonth) {
-    monthId = (existingMonth as { id: string }).id
-  } else {
-    // INSERT without .select() to avoid PostgREST "Prefer: return=representation"
-    // which requires a proper PK — the DB may be missing it if created with an old schema.
-    const { error: insertErr } = await supabase
-      .from('months')
-      .insert({ user_id: userId, year: month.year, month: month.month })
-    // Code 23505 = unique_violation on months_user_year_month. The row already
-    // exists (in-memory state was out of sync); recover by fetching its id below
-    // instead of failing the whole save.
-    if (insertErr && insertErr.code !== '23505') {
-      console.error('[Osmin] saveMonth — months insert failed:', insertErr.message, insertErr)
-      throw new Error(`months insert: ${insertErr.message}`)
-    }
-    // Fetch the id in a separate call
-    const { data: fetched, error: fetchErr } = await supabase
-      .from('months')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('year', month.year)
-      .eq('month', month.month)
-      .maybeSingle()
-    if (fetchErr || !fetched) {
-      const msg = fetchErr?.message ?? 'row not found after insert'
-      console.error('[Osmin] saveMonth — months fetch failed:', msg)
-      throw new Error(`months insert: ${msg}`)
-    }
-    monthId = (fetched as { id: string }).id
-  }
-
+// ── Save a single month (atomic upsert via RPC) ────────────────────────────────
+// All of months/days/habits/goals are written in a single Postgres transaction
+// (see `save_month` in supabase-fix-month-atomic-save.sql) so a partial write
+// (e.g. days deleted but never reinserted) is structurally impossible, even if
+// this function is called twice concurrently for the same month. Each call also
+// appends a row to `month_snapshots` — a decoupled, append-only history table —
+// so a prior good state is always recoverable regardless of what goes wrong later.
+export async function saveMonthToDB(supabase: SupabaseClient, userId: string, month: Month, source = 'client'): Promise<void> {
   const habitRows = month.habits.map((h, i) => ({
-    month_id: monthId,
-    user_id: userId,
     app_id: h.id,
     label: h.label,
     short: h.short,
@@ -154,8 +117,6 @@ export async function saveMonthToDB(supabase: SupabaseClient, userId: string, mo
   }))
 
   const dayRows = month.days.map(d => ({
-    month_id: monthId,
-    user_id: userId,
     day: d.day,
     weekday: d.weekday,
     status: d.status,
@@ -165,40 +126,24 @@ export async function saveMonthToDB(supabase: SupabaseClient, userId: string, mo
   }))
 
   const goalRows = month.goals.map((g, i) => ({
-    month_id: monthId,
-    user_id: userId,
     app_id: g.id,
     text: g.text,
     done: g.done,
     position: i,
   }))
 
-  // Same guard as habits: never wipe days for an empty in-memory set (corrupt load).
-  if (dayRows.length > 0) {
-    await supabase.from('days').delete().eq('month_id', monthId)
-    const { error: daysErr } = await supabase.from('days').insert(dayRows)
-    if (daysErr) {
-      console.error('[Osmin] saveMonth — days insert failed:', daysErr.message, daysErr)
-      throw new Error(`days insert: ${daysErr.message}`)
-    }
-  }
+  const { error } = await supabase.rpc('save_month', {
+    p_year: month.year,
+    p_month: month.month,
+    p_habits: habitRows,
+    p_days: dayRows,
+    p_goals: goalRows,
+    p_source: source,
+  })
 
-  // Guard: an empty habit set almost always means a failed/partial load, not a
-  // genuine state (the UI never lets you delete the last habit). Skipping the
-  // delete+insert here prevents silently wiping the user's real habits.
-  if (habitRows.length > 0) {
-    await supabase.from('habits').delete().eq('month_id', monthId)
-    const { error: habitsErr } = await supabase.from('habits').insert(habitRows)
-    if (habitsErr) {
-      console.error('[Osmin] saveMonth — habits insert failed:', habitsErr.message, habitsErr)
-      throw new Error(`habits insert: ${habitsErr.message}`)
-    }
-  }
-
-  await supabase.from('goals').delete().eq('month_id', monthId)
-  if (goalRows.length > 0) {
-    const { error: goalsErr } = await supabase.from('goals').insert(goalRows)
-    if (goalsErr) console.error('[Osmin] saveMonth — goals insert failed:', goalsErr.message, goalsErr)
+  if (error) {
+    console.error('[Osmin] saveMonth — save_month RPC failed:', error.message, error)
+    throw new Error(`save_month: ${error.message}`)
   }
 }
 

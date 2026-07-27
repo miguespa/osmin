@@ -108,26 +108,46 @@ export function buildBlankMonth(year: number, monthIdx: number, prevHabits?: Hab
   return { year, month: monthIdx, habits, days, goals: pendingGoals }
 }
 
-// Objetivo esperado para hábitos de marcado: target/semana × nº de semanas del mes.
-// "Todos los días" (7/sem) se mide sobre el total de días del mes.
-export function expectedForCheck(habit: Habit, daysInMonth: number): number {
+// Días del mes que ya han ocurrido. En el mes en curso solo cuentan hasta hoy
+// (hoy incluido); en meses pasados, todos; en meses futuros, ninguno. Así las
+// estadísticas no se diluyen contra días que aún no han llegado.
+export function elapsedDaysInMonth(month: Month): number {
+  const today = new Date()
+  const isCurrent = month.year === today.getFullYear() && month.month === today.getMonth()
+  if (isCurrent) return Math.min(month.days.length, today.getDate())
+  const isPast = month.year < today.getFullYear()
+    || (month.year === today.getFullYear() && month.month < today.getMonth())
+  return isPast ? month.days.length : 0
+}
+
+// Objetivo esperado para hábitos de marcado: target/semana × nº de semanas.
+// "Todos los días" (7/sem) se mide sobre el total de días.
+// Con el mes en curso solo contamos las semanas ya cerradas más la que está en
+// juego (semana 1 = días 1-7, semana 2 = días 8-14…): las semanas por venir no
+// deben penalizar el cumplimiento. Un mes cerrado sigue midiéndose entero.
+export function expectedForCheck(habit: Habit, daysInMonth: number, elapsedDays = daysInMonth): number {
   const tpw = habit.targetPerWeek || 7
-  if (tpw >= 7) return daysInMonth
-  const weeks = Math.max(1, Math.round(daysInMonth / 7))
+  const elapsed = Math.min(daysInMonth, Math.max(0, elapsedDays))
+  if (tpw >= 7) return Math.max(1, elapsed)
+  const totalWeeks = Math.max(1, Math.round(daysInMonth / 7))
+  const weeks = Math.min(totalWeeks, Math.max(1, Math.ceil(elapsed / 7)))
   return Math.max(1, tpw * weeks)
 }
 
 export function habitStats(month: Month, habit: Habit): HabitStats {
   const days = month.days
+  // Denominador de las medias/porcentajes: días ya transcurridos, nunca 0.
+  const elapsed = elapsedDaysInMonth(month)
+  const divisor = Math.max(1, elapsed)
   if (habit.type === 'check') {
     const done = days.filter(d => d.habits[habit.id] === 1).length
-    const expected = expectedForCheck(habit, days.length)
+    const expected = expectedForCheck(habit, days.length, elapsed)
     const pct = Math.min(100, Math.round((done / expected) * 100))
     return { done, total: days.length, expected, pct }
   }
   if (habit.type === 'text-check') {
     const done = days.filter(d => { const v = d.habits[habit.id]; return typeof v === 'string' && v.length > 0 }).length
-    const expected = expectedForCheck(habit, days.length)
+    const expected = expectedForCheck(habit, days.length, elapsed)
     const pct = Math.min(100, Math.round((done / expected) * 100))
     return { done, total: days.length, expected, pct }
   }
@@ -137,8 +157,8 @@ export function habitStats(month: Month, habit: Habit): HabitStats {
     const sum = days.reduce((a, d) => a + (Number(d.habits[habit.id]) || 0), 0)
     return {
       done: hit, total: days.length,
-      pct: Math.round((hit / days.length) * 100),
-      avg: Math.round(sum / days.length),
+      pct: Math.min(100, Math.round((hit / divisor) * 100)),
+      avg: Math.round(sum / divisor),
       sum,
     }
   }
