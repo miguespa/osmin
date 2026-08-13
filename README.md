@@ -61,13 +61,18 @@ Las reglas que sostienen esto:
 Se aplican desde Supabase → SQL Editor, en orden:
 
 ```
-supabase-reset-clean.sql            esquema base
-supabase-fix-pk.sql                 PK y unique constraints
-supabase-fix-month-atomic-save.sql  save_month + month_snapshots (histórico)
-supabase-split-write-intents.sql    API de escritura por intención (vigente)
+supabase-reset-clean.sql             esquema base
+supabase-fix-pk.sql                  PK y unique constraints
+supabase-fix-month-atomic-save.sql   save_month + month_snapshots (histórico)
+supabase-split-write-intents.sql     API de escritura por intención (vigente)
+supabase-guard-legacy-save-month.sql guarda temporal sobre save_month
+supabase-harden-clerk-user-id.sql    search_path fijo en clerk_user_id()
 ```
 
 `supabase-restore-august-2026.sql` es un rescate puntual, no una migración.
+
+`supabase-guard-legacy-save-month.sql` es temporal: protege a los clientes aún no
+actualizados. Se retira junto con `save_month` cuando el despliegue esté verificado.
 
 ## Desarrollo local
 
