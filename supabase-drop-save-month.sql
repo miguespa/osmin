@@ -1,0 +1,32 @@
+-- ============================================================
+-- Osmin — Retirada de save_month
+--
+-- `save_month` era la primitiva «reemplaza el mes entero por este payload»,
+-- causa raiz de las pérdidas de julio y agosto de 2026: marcar una casilla
+-- reescribía los 31 días, los hábitos y los hitos, de modo que cualquier estado
+-- corrupto en memoria del cliente destruía el mes completo.
+--
+-- La sustituye el API por intención de `supabase-split-write-intents.sql`.
+-- Mientras quedaban clientes sin actualizar, `supabase-guard-legacy-save-month.sql`
+-- la protegía con una guarda anti-vaciado. Esa guarda limitaba el daño pero no lo
+-- eliminaba: con el umbral en «dos o más», todavía dejaba perder una anotación y
+-- un hábito por llamada. Mientras la función existiera, ese hueco existía.
+--
+-- Se retira con esta evidencia (13-ago-2026, tras el despliegue de las 20:12:05):
+--   · 0 llamadas a /rpc/save_month desde el despliegue
+--   · última llamada 20:10:42, minuto y medio ANTES del despliegue
+--   · Safari iOS y Chrome iOS confirmados escribiendo por /rpc/save_day (204)
+--   · a las 20:15:19 se repitió el fallo que causó el incidente — cuatro 401
+--     simultáneos en months/goals/tweaks/habits — y la carga con reintento lo
+--     absorbió: seis consultas a 200 1,6 s después, y ninguna escritura en blanco
+--
+-- El backup NO se ve afectado: `month_snapshots` es una tabla independiente y
+-- las seis operaciones del API nuevo siguen escribiendo en ella, además con
+-- pre-imagen (el estado ANTES de la operación destructiva) en vez de la
+-- post-imagen que guardaba save_month.
+--
+-- Si quedara algún cliente antiguo, su fallo es seguro: «function save_month
+-- does not exist» — error visible, sin pérdida de datos, resuelto al recargar.
+-- ============================================================
+
+drop function if exists public.save_month(int, int, jsonb, jsonb, jsonb, text);

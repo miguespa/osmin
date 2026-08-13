@@ -137,23 +137,34 @@ export async function fetchAllData(supabase: SupabaseClient, userId: string): Pr
   return { months, tweaks, uiState }
 }
 
-/** Carga con reintentos: los 401 y los cortes de red son transitorios. */
-export async function fetchAllDataWithRetry(
+// ── Reintentos ────────────────────────────────────────────────────────────────
+// Los 401 transitorios y los cortes de red son la norma en móvil: el 13-ago-2026
+// un único 401 en la carga bastó para perder agosto entero. Todo lo que hable con
+// el servidor pasa por aquí.
+const RETRY_DELAYS = [500, 1500, 4000]
+
+export async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      if (i < attempts - 1) {
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[Math.min(i, RETRY_DELAYS.length - 1)]))
+      }
+    }
+  }
+  throw lastErr
+}
+
+/** Carga con reintentos. */
+export function fetchAllDataWithRetry(
   supabase: SupabaseClient,
   userId: string,
   attempts = 3,
 ): Promise<FetchResult> {
-  const delays = [500, 1500, 4000]
-  let lastErr: unknown
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchAllData(supabase, userId)
-    } catch (err) {
-      lastErr = err
-      if (i < attempts - 1) await new Promise(r => setTimeout(r, delays[Math.min(i, delays.length - 1)]))
-    }
-  }
-  throw lastErr
+  return withRetry(() => fetchAllData(supabase, userId), attempts)
 }
 
 // ── Escrituras por intención ──────────────────────────────────────────────────
@@ -304,25 +315,36 @@ export async function restoreMonthSnapshot(supabase: SupabaseClient, snapshotId:
 }
 
 // ── Save tweaks ───────────────────────────────────────────────────────────────
-export async function saveTweaksToDB(supabase: SupabaseClient, userId: string, tweaks: Tweaks): Promise<void> {
-  await supabase.from('tweaks').upsert({
-    user_id: userId,
-    theme: tweaks.theme,
-    density: tweaks.density,
-    accent: tweaks.accent,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' })
+// Preferencias, no contenido: perderlas no es grave, pero se silenciaban por
+// completo (ni error ni reintento). Ahora reintentan como el resto.
+export function saveTweaksToDB(supabase: SupabaseClient, userId: string, tweaks: Tweaks): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('tweaks').upsert({
+      user_id: userId,
+      theme: tweaks.theme,
+      density: tweaks.density,
+      accent: tweaks.accent,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    if (error) throw Object.assign(new Error(`save tweaks: ${error.message}`), { code: error.code })
+  })
 }
 
 // ── Save UI state ─────────────────────────────────────────────────────────────
-export async function saveUiStateToDB(supabase: SupabaseClient, userId: string, year: number, month: number, layout: LayoutType): Promise<void> {
-  await supabase.from('ui_state').upsert({
-    user_id: userId,
-    active_year: year,
-    active_month: month,
-    layout,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' })
+// Mes activo y vista. El 13-ago-2026 a las 20:23:09 este upsert recibió un 401
+// justo después de un save_day correcto, y al no reintentar se perdió en qué mes
+// estabas. No toca datos del diario, pero el hueco de reintento era el mismo.
+export function saveUiStateToDB(supabase: SupabaseClient, userId: string, year: number, month: number, layout: LayoutType): Promise<void> {
+  return withRetry(async () => {
+    const { error } = await supabase.from('ui_state').upsert({
+      user_id: userId,
+      active_year: year,
+      active_month: month,
+      layout,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    if (error) throw Object.assign(new Error(`save ui_state: ${error.message}`), { code: error.code })
+  })
 }
 
 // ── Delete all user data ──────────────────────────────────────────────────────
