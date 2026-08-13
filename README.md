@@ -67,12 +67,14 @@ supabase-fix-month-atomic-save.sql   save_month + month_snapshots (histórico)
 supabase-split-write-intents.sql     API de escritura por intención (vigente)
 supabase-guard-legacy-save-month.sql guarda temporal sobre save_month
 supabase-harden-clerk-user-id.sql    search_path fijo en clerk_user_id()
+supabase-drop-save-month.sql         retira save_month y su guarda
 ```
 
 `supabase-restore-august-2026.sql` es un rescate puntual, no una migración.
 
-`supabase-guard-legacy-save-month.sql` es temporal: protege a los clientes aún no
-actualizados. Se retira junto con `save_month` cuando el despliegue esté verificado.
+Los dos archivos de `save_month` se conservan solo como registro histórico: la
+función ya no existe. `month_snapshots` no se vio afectada — las seis operaciones
+del API vigente siguen escribiendo en ella, y con pre-imagen.
 
 ## Desarrollo local
 
