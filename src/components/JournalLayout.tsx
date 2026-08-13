@@ -251,12 +251,17 @@ function DayCard({ day, habits, selected, isToday, onUpdate, onSelect, innerRef 
 
 interface JournalLayoutProps {
   month: Month
-  setMonth: (updater: Month | ((prev: Month) => Month)) => void
+  /**
+   * Notifica el cambio de UN día. La vista no puede tocar nada más del mes:
+   * ni otros días, ni hábitos, ni hitos. Antes recibía un `setMonth` con el que
+   * cualquier edición reescribía el mes entero en el servidor.
+   */
+  onDayChange: (day: number, patch: Partial<Day>) => void
   density: string
   isMobile?: boolean
 }
 
-export function JournalLayout({ month, setMonth, density, isMobile = false }: JournalLayoutProps) {
+export function JournalLayout({ month, onDayChange, density, isMobile = false }: JournalLayoutProps) {
   const _today = new Date()
   const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
     ? _today.getDate() : null
@@ -281,14 +286,6 @@ export function JournalLayout({ month, setMonth, density, isMobile = false }: Jo
     )
   }
 
-  const updateDay = (day: number, mut: Partial<Day>) => {
-    setMonth(m => {
-      const next = { ...m, days: m.days.slice() }
-      next.days[day - 1] = { ...next.days[day - 1], ...mut }
-      return next
-    })
-  }
-
   return (
     <div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: density === 'compact' ? 6 : 10 }}>
@@ -297,7 +294,7 @@ export function JournalLayout({ month, setMonth, density, isMobile = false }: Jo
             innerRef={d.day === todayDay ? todayCardRef : undefined}
             selected={selected === d.day} isToday={d.day === todayDay}
             onSelect={() => setSelected(d.day)}
-            onUpdate={mut => updateDay(d.day, mut)}
+            onUpdate={patch => onDayChange(d.day, patch)}
           />
         ))}
       </div>

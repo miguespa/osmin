@@ -37,7 +37,20 @@ export interface Month {
   habits: Habit[]
   days: Day[]
   goals: Goal[]
+  /**
+   * Revisión del mes en el servidor. La usan `save_habits` y `save_goals` para
+   * control de concurrencia optimista: si otro dispositivo escribió entretanto,
+   * el servidor rechaza con OSM03 en vez de pisar sus cambios. Ausente mientras
+   * el mes solo existe en memoria (recién creado y aún sin confirmar).
+   */
+  revision?: number
 }
+
+/** Estado de sincronización con el servidor, visible en la UI. */
+export type SyncState = 'idle' | 'saving' | 'error'
+
+/** Estado de la carga inicial. Nunca se edita sin haber cargado del servidor. */
+export type LoadStatus = 'loading' | 'ready' | 'error'
 
 export interface Tweaks {
   theme: Theme

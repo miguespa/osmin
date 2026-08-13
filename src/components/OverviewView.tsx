@@ -99,15 +99,16 @@ function GoalRow({ goal, onChange, onDelete }: { goal: Goal; onChange: (mut: Par
   )
 }
 
-function GoalsChecklist({ month, setMonth }: { month: Month; setMonth: (updater: Month | ((prev: Month) => Month)) => void }) {
+function GoalsChecklist({ month, onGoalsChange }: {
+  month: Month
+  /** Notifica el nuevo conjunto de hitos. No puede tocar días ni hábitos. */
+  onGoalsChange: (goals: Goal[]) => void
+}) {
   const goals = month.goals || []
-  const updateGoal = (id: string, mut: Partial<Goal>) => setMonth(m => ({
-    ...m, goals: m.goals.map(g => g.id === id ? { ...g, ...mut } : g),
-  }))
-  const deleteGoal = (id: string) => setMonth(m => ({ ...m, goals: m.goals.filter(g => g.id !== id) }))
-  const addGoal = () => setMonth(m => ({
-    ...m, goals: [...m.goals, { id: 'g' + Date.now(), text: '', done: false }],
-  }))
+  const updateGoal = (id: string, mut: Partial<Goal>) =>
+    onGoalsChange(goals.map(g => g.id === id ? { ...g, ...mut } : g))
+  const deleteGoal = (id: string) => onGoalsChange(goals.filter(g => g.id !== id))
+  const addGoal = () => onGoalsChange([...goals, { id: 'g' + Date.now(), text: '', done: false }])
   const done = goals.filter(g => g.done).length
   const atLimit = goals.length >= 5
 
@@ -354,26 +355,38 @@ function HabitRow({ habit, palette, onChange, onDelete, canDelete, isMobile = fa
   )
 }
 
-function HabitEditor({ month, setMonth, isMobile = false }: { month: Month; setMonth: (updater: Month | ((prev: Month) => Month)) => void; isMobile?: boolean }) {
+function HabitEditor({ month, onHabitsChange, isMobile = false }: {
+  month: Month
+  /**
+   * Notifica el nuevo conjunto de hábitos, y los días ya reajustados cuando la
+   * edición cambia las claves de `habits` de cada día (añadir o quitar hábito).
+   * El servidor rehace esas claves dentro de la misma transacción; `days` viaja
+   * solo para que la vista no parpadee mientras responde.
+   */
+  onHabitsChange: (habits: Habit[], days?: Day[]) => void
+  isMobile?: boolean
+}) {
   const [collapsed, setCollapsed] = useState(false)
   const habits = month.habits
   const palette = ['#1F8A5B', '#7C5CD0', '#2A6FDB', '#C97A2A', '#D9445C', '#0E8E8E']
-  const update = (id: string, mut: Partial<Habit>) => setMonth(m => ({ ...m, habits: m.habits.map(h => h.id === id ? { ...h, ...mut } : h) }))
-  const remove = (id: string) => setMonth(m => {
-    const next = { ...m, habits: m.habits.filter(h => h.id !== id) }
-    next.days = next.days.map(d => { const habits = { ...d.habits }; delete habits[id]; return { ...d, habits } })
-    return next
-  })
-  const add = () => setMonth(m => {
+
+  const update = (id: string, mut: Partial<Habit>) =>
+    onHabitsChange(month.habits.map(h => h.id === id ? { ...h, ...mut } : h))
+
+  const remove = (id: string) => onHabitsChange(
+    month.habits.filter(h => h.id !== id),
+    month.days.map(d => { const habits = { ...d.habits }; delete habits[id]; return { ...d, habits } }),
+  )
+
+  const add = () => {
     const id = 'h' + Date.now()
-    const used = m.habits.map(h => h.color)
-    const color = palette.find(c => !used.includes(c)) || palette[m.habits.length % palette.length]
-    return {
-      ...m,
-      habits: [...m.habits, { id, label: 'Nuevo hábito', short: 'New', type: 'check', targetPerWeek: 7, color }],
-      days: m.days.map(d => ({ ...d, habits: { ...d.habits, [id]: 0 } })),
-    }
-  })
+    const used = month.habits.map(h => h.color)
+    const color = palette.find(c => !used.includes(c)) || palette[month.habits.length % palette.length]
+    onHabitsChange(
+      [...month.habits, { id, label: 'Nuevo hábito', short: 'New', type: 'check', targetPerWeek: 7, color }],
+      month.days.map(d => ({ ...d, habits: { ...d.habits, [id]: 0 } })),
+    )
+  }
 
   return (
     <div id="habits-section" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
@@ -644,15 +657,16 @@ export function StatsView({ month, isMobile = false }: StatsViewProps) {
 // ── Vista de edición — hábitos e hitos del mes ──────────────────────────────────
 interface EditViewProps {
   month: Month
-  setMonth: (updater: Month | ((prev: Month) => Month)) => void
+  onHabitsChange: (habits: Habit[], days?: Day[]) => void
+  onGoalsChange: (goals: Goal[]) => void
   isMobile?: boolean
 }
 
-export function EditView({ month, setMonth, isMobile = false }: EditViewProps) {
+export function EditView({ month, onHabitsChange, onGoalsChange, isMobile = false }: EditViewProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <HabitEditor month={month} setMonth={setMonth} isMobile={isMobile} />
-      <GoalsChecklist month={month} setMonth={setMonth} />
+      <HabitEditor month={month} onHabitsChange={onHabitsChange} isMobile={isMobile} />
+      <GoalsChecklist month={month} onGoalsChange={onGoalsChange} />
     </div>
   )
 }
