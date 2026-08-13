@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { WEEKDAYS_ES, cycleCheck, cycleStatus } from '../data'
-import type { Month, Habit } from '../types'
+import type { Month, Habit, Day } from '../types'
 
 function StatusBand({ status }: { status: string }) {
   const colors: Record<string, string> = { work: 'transparent', holiday: 'var(--c-festivo)', vacation: 'var(--c-vacaciones)' }
@@ -153,11 +153,16 @@ export function HighlightInput({ value, milestone, onChange, onToggleMilestone }
 
 interface TableLayoutProps {
   month: Month
-  setMonth: (updater: Month | ((prev: Month) => Month)) => void
+  /**
+   * Notifica el cambio de UN día. La vista no puede tocar nada más del mes:
+   * ni otros días, ni hábitos, ni hitos. Antes recibía un `setMonth` con el que
+   * cualquier edición reescribía el mes entero en el servidor.
+   */
+  onDayChange: (day: number, patch: Partial<Day>) => void
   density: string
 }
 
-export function TableLayout({ month, setMonth, density }: TableLayoutProps) {
+export function TableLayout({ month, onDayChange, density }: TableLayoutProps) {
   const rowH = density === 'compact' ? 30 : 38
   const _today = new Date()
   const todayDay = (month.year === _today.getFullYear() && month.month === _today.getMonth())
@@ -172,12 +177,10 @@ export function TableLayout({ month, setMonth, density }: TableLayoutProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month.year, month.month])
 
-  const updateDay = (idx: number, mut: (d: typeof month.days[0]) => Partial<typeof month.days[0]>) => {
-    setMonth(m => {
-      const next = { ...m, days: m.days.slice() }
-      next.days[idx] = { ...next.days[idx], ...mut(next.days[idx]) }
-      return next
-    })
+  const updateDay = (idx: number, mut: (d: Day) => Partial<Day>) => {
+    const d = month.days[idx]
+    if (!d) return
+    onDayChange(d.day, mut(d))
   }
   const updateHabit = (idx: number, hid: string, val: number | string) =>
     updateDay(idx, d => ({ habits: { ...d.habits, [hid]: val } }))

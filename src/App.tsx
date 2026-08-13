@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useAuth, useUser, useClerk } from '@clerk/clerk-react'
 import { buildBlankMonth, MONTHS_ES } from './data'
 import { TableLayout } from './components/TableLayout'
@@ -9,8 +9,9 @@ import { OnboardingFlow } from './components/OnboardingFlow'
 import { BottomTabBar, type MobileTab } from './components/BottomTabBar'
 import { useIsMobile } from './hooks/useIsMobile'
 import { makeSupabaseClient } from './lib/supabase'
-import { fetchAllData, saveMonthToDB, deleteMonthFromDB, saveTweaksToDB, saveUiStateToDB, deleteAllUserData, upsertUserProfile, recordLoginEvent } from './lib/db'
-import type { Month, Tweaks, LayoutType, ViewMode } from './types'
+import { fetchAllDataWithRetry, deleteMonthFromDB, saveTweaksToDB, saveUiStateToDB, deleteAllUserData, upsertUserProfile, recordLoginEvent } from './lib/db'
+import { useWriteQueue, type SyncStatus } from './hooks/useWriteQueue'
+import type { Month, Day, Habit, Goal, Tweaks, LayoutType, ViewMode, LoadStatus } from './types'
 import logoUrl from '/logo.png'
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
@@ -495,6 +496,71 @@ function LoadingScreen() {
   )
 }
 
+// ── Pantalla de error de carga ─────────────────────────────────────────────────
+// Sustituye al comportamiento que destruyó agosto de 2026: ante un fallo de carga
+// la app metía un mes en blanco en el estado y lo guardaba encima de los datos
+// reales. Sin datos del servidor no se muestra nada editable y no se escribe nada.
+function LoadErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', padding: 24 }}>
+      <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
+        <img src={logoUrl} alt="Osmin" style={{ height: 34, filter: 'brightness(0) invert(1) opacity(0.7)', marginBottom: 22 }} />
+        <h1 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 27, color: 'var(--text)', lineHeight: 1.15 }}>
+          No hemos podido cargar tus datos
+        </h1>
+        <p style={{ marginTop: 10, fontFamily: 'Inter, sans-serif', fontSize: 13.5, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+          Tus datos están a salvo en el servidor — no se ha escrito nada. Vuelve a intentarlo.
+        </p>
+        <button onClick={onRetry} style={{ marginTop: 18, padding: '10px 24px', borderRadius: 9, border: 'none', background: 'var(--accent)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 13.5, fontWeight: 600, color: '#fff' }}>
+          Reintentar
+        </button>
+        <details style={{ marginTop: 22, textAlign: 'left' }}>
+          <summary style={{ cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)' }}>Detalle técnico</summary>
+          <pre style={{ marginTop: 8, padding: 12, borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--line)', fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: 'var(--text-soft)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{message}</pre>
+        </details>
+      </div>
+    </div>
+  )
+}
+
+// ── Indicador de sincronización ────────────────────────────────────────────────
+// Antes un fallo de guardado se mostraba en un toast que se iba a los 6 s: los
+// errores pasaban desapercibidos. Este indicador es persistente mientras haya
+// algo sin guardar.
+function SyncIndicator({ sync, onRetry }: { sync: SyncStatus; onRetry: () => void }) {
+  if (sync.state === 'idle' && sync.pending === 0) return null
+
+  const isError = sync.state === 'error'
+  const label = isError
+    ? `Sin guardar (${sync.pending}) — reintentando`
+    : 'Guardando…'
+
+  return (
+    <div
+      onClick={isError ? onRetry : undefined}
+      title={isError ? `${sync.message}\n\nPulsa para reintentar ahora` : undefined}
+      style={{
+        position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', left: '50%',
+        transform: 'translateX(-50%)', zIndex: 100,
+        display: 'flex', alignItems: 'center', gap: 9,
+        background: isError ? '#E05252' : 'var(--surface)',
+        border: `1px solid ${isError ? 'transparent' : 'var(--line)'}`,
+        color: isError ? '#fff' : 'var(--text-muted)',
+        padding: '8px 16px', borderRadius: 999,
+        fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+        boxShadow: '0 8px 24px rgba(0,0,0,.28)',
+        cursor: isError ? 'pointer' : 'default',
+        maxWidth: 'calc(100vw - 32px)',
+      }}>
+      <span style={{
+        width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+        background: isError ? '#fff' : 'var(--accent)',
+      }} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+    </div>
+  )
+}
+
 // ── MobileMonthSheet ───────────────────────────────────────────────────────────
 function MobileMonthSheet({ months, activeIdx, onSelect, onDelete, onAddMonth, onClose }: {
   months: Month[]
@@ -609,8 +675,8 @@ export default function App() {
     [getClerkToken]
   )
 
-  const [loading, setLoading] = useState(true)
-  const [saveError, setSaveError] = useState('')
+  const [status, setStatus] = useState<LoadStatus>('loading')
+  const [loadError, setLoadError] = useState('')
   const [months, setMonths] = useState<Month[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
   const [layout, setLayout] = useState<LayoutType>('table')
@@ -642,13 +708,21 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
-  // ── Initial fetch ────────────────────────────────────────────────────────────
-  useEffect(() => {
+  // ── Carga inicial ────────────────────────────────────────────────────────────
+  // Referencia viva de los meses: la cola de escrituras lee de aquí al vaciarse,
+  // así siempre persiste el estado actual y no el del cierre que la encoló.
+  const monthsRef = useRef<Month[]>(months)
+  monthsRef.current = months
+
+  const loadData = useCallback(async () => {
     if (!userId) return
-    fetchAllData(supabase, userId).then(result => {
-      if (result.months.length > 0) {
-        // Sort months chronologically
-        const sorted = [...result.months].sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month)
+    setStatus('loading')
+    setLoadError('')
+    try {
+      const result = await fetchAllDataWithRetry(supabase, userId)
+      const sorted = [...result.months].sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month)
+
+      if (sorted.length > 0) {
         setMonths(sorted)
         if (result.tweaks) setTweak(result.tweaks)
         if (result.uiState) {
@@ -659,25 +733,33 @@ export default function App() {
           setActiveIdx(sorted.length - 1)
         }
       } else {
+        // Usuario nuevo de verdad: la carga fue correcta y no hay nada. El mes en
+        // blanco se escribe con `create_month`, que SOLO inserta — si el servidor
+        // ya tuviera ese mes, la creación se rechaza y no se pisa nada.
         const now = new Date()
         const blank = buildBlankMonth(now.getFullYear(), now.getMonth())
         setMonths([blank])
-        saveMonthSerialized(blank, 'initial-fetch').catch(console.error)
-        if (!localStorage.getItem('osmin_onboarding_v1')) {
-          setShowOnboarding(true)
-        }
+        setActiveIdx(0)
+        pendingCreate.current = { year: blank.year, month: blank.month }
+        if (!localStorage.getItem('osmin_onboarding_v1')) setShowOnboarding(true)
       }
-      setLoading(false)
-    }).catch(err => {
-      console.error('Failed to load data from Supabase', err)
-      const msg = err instanceof Error ? err.message : String(err)
-      setSaveError(`Error al cargar datos — ${msg}`)
-      const now = new Date()
-      setMonths([buildBlankMonth(now.getFullYear(), now.getMonth())])
-      setLoading(false)
-    })
+      setStatus('ready')
+    } catch (err) {
+      // NUNCA fabricamos un mes en blanco aquí.
+      //
+      // Esto es exactamente lo que destruyó agosto de 2026: un 401 transitorio en
+      // `GET /months` hacía que el catch metiera `[buildBlankMonth(hoy)]` en el
+      // estado, y 1,2 s después el autoguardado lo persistía encima de 31 días de
+      // diario. Un fallo de carga ahora solo produce una pantalla de error: sin
+      // datos del servidor no hay nada que editar y no se escribe nada.
+      console.error('[Osmin] fallo al cargar los datos', err)
+      setLoadError(err instanceof Error ? err.message : String(err))
+      setStatus('error')
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId])
+  }, [userId, supabase])
+
+  useEffect(() => { void loadData() }, [loadData])
 
   // ── Theme / density / accent CSS vars ────────────────────────────────────────
   useEffect(() => {
@@ -686,75 +768,79 @@ export default function App() {
     document.documentElement.style.setProperty('--accent', tweaks.accent)
   }, [tweaks.theme, tweaks.density, tweaks.accent])
 
-  // ── Debounced Supabase saves ──────────────────────────────────────────────────
-  const lastSavedMonths = useRef<Map<string, Month>>(new Map())
+  // ── Escrituras dirigidas por la acción del usuario ───────────────────────────
+  // Ya no existe un autoguardado que compare `months` con la última copia y
+  // reescriba el mes entero de lo que haya cambiado. Cada mutación encola la
+  // escritura concreta que le corresponde, así que un estado que el usuario no
+  // ha editado no genera ninguna escritura.
+  const setRevision = useCallback((year: number, month: number, revision: number) => {
+    setMonths(ms => ms.map(m => m.year === year && m.month === month ? { ...m, revision } : m))
+  }, [])
 
-  // Per-month save lock: guarantees two saves for the same month (e.g. the direct
-  // save fired by addMonth and the debounced autosave below) never run concurrently.
-  // The atomic `save_month` RPC already makes a single save race-proof server-side;
-  // this queues redundant client-side saves so they don't do duplicate round-trips
-  // (and duplicate month_snapshots rows) for what is really one logical change.
-  const monthSaveLocks = useRef<Map<string, Promise<void>>>(new Map())
+  const needsReload = useCallback((reason: string) => {
+    console.warn('[Osmin] recargando del servidor:', reason)
+    void loadData()
+  }, [loadData])
 
-  const saveMonthSerialized = (m: Month, source: string): Promise<void> => {
-    if (!userId) return Promise.resolve()
-    const key = `${m.year}-${m.month}`
-    const prevInFlight = monthSaveLocks.current.get(key) ?? Promise.resolve()
-    const run = prevInFlight.catch(() => {}).then(() => saveMonthToDB(supabase, userId, m, source))
-    monthSaveLocks.current.set(key, run)
-    return run.finally(() => {
-      if (monthSaveLocks.current.get(key) === run) monthSaveLocks.current.delete(key)
-    })
-  }
+  const { enqueue, flushNow, sync } = useWriteQueue({
+    supabase, userId, monthsRef, onRevision: setRevision, onNeedsReload: needsReload,
+  })
+
+  // Creación de mes pendiente de confirmar contra el servidor (usuario nuevo).
+  const pendingCreate = useRef<{ year: number; month: number } | null>(null)
+  useEffect(() => {
+    if (status !== 'ready' || !pendingCreate.current) return
+    const { year, month } = pendingCreate.current
+    pendingCreate.current = null
+    enqueue({ kind: 'create', year, month })
+  }, [status, enqueue])
 
   useEffect(() => {
-    if (loading || !userId || months.length === 0) return
-    const timer = setTimeout(async () => {
-      const prev = lastSavedMonths.current
-      const toSave = months.filter(m => prev.get(`${m.year}-${m.month}`) !== m)
-      for (const m of toSave) {
-        try {
-          await saveMonthSerialized(m, 'debounced-autosave')
-          lastSavedMonths.current.set(`${m.year}-${m.month}`, m)
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          console.error('[Osmin] save failed:', msg)
-          setSaveError(msg)
-          setTimeout(() => setSaveError(''), 6000)
-        }
-      }
-    }, 1200)
-    return () => clearTimeout(timer)
-  }, [months, loading, userId, supabase])
-
-  useEffect(() => {
-    if (loading || !userId) return
+    if (status !== 'ready' || !userId) return
     const timer = setTimeout(() => {
       saveTweaksToDB(supabase, userId, tweaks).catch(console.error)
     }, 1200)
     return () => clearTimeout(timer)
-  }, [tweaks, loading, userId, supabase])
+  }, [tweaks, status, userId, supabase])
 
   useEffect(() => {
-    if (loading || !userId || months.length === 0) return
+    if (status !== 'ready' || !userId || months.length === 0) return
     const m = months[activeIdx]
     if (!m) return
     const timer = setTimeout(() => {
       saveUiStateToDB(supabase, userId, m.year, m.month, layout).catch(console.error)
     }, 1200)
     return () => clearTimeout(timer)
-  }, [activeIdx, layout, months, loading, userId, supabase])
+  }, [activeIdx, layout, months, status, userId, supabase])
 
-  // ── Month helpers ─────────────────────────────────────────────────────────────
+  // ── Mutadores por intención ───────────────────────────────────────────────────
+  // Cada uno actualiza el estado y encola exactamente la escritura que le toca.
+  // No hay ningún camino que escriba «el mes entero»: eso solo lo hace la
+  // creación de un mes, y esa operación en el servidor únicamente inserta.
   const month = months[activeIdx] ?? months[0]
 
-  const setMonth = (updater: Month | ((prev: Month) => Month)) => {
-    setMonths(ms => {
-      const next = ms.slice()
-      next[activeIdx] = typeof updater === 'function' ? updater(ms[activeIdx]) : updater
-      return next
-    })
-  }
+  const updateDay = useCallback((year: number, monthIdx: number, day: number, patch: Partial<Day>) => {
+    setMonths(ms => ms.map(m => {
+      if (m.year !== year || m.month !== monthIdx) return m
+      return { ...m, days: m.days.map(d => d.day === day ? { ...d, ...patch } : d) }
+    }))
+    enqueue({ kind: 'day', year, month: monthIdx, day })
+  }, [enqueue])
+
+  const updateHabits = useCallback((year: number, monthIdx: number, habits: Habit[], days?: Day[]) => {
+    setMonths(ms => ms.map(m => {
+      if (m.year !== year || m.month !== monthIdx) return m
+      return { ...m, habits, ...(days ? { days } : {}) }
+    }))
+    // El servidor sincroniza las claves de habit_values de todos los días dentro
+    // de la misma transacción, así que no hace falta reescribir día por día.
+    enqueue({ kind: 'habits', year, month: monthIdx })
+  }, [enqueue])
+
+  const updateGoals = useCallback((year: number, monthIdx: number, goals: Goal[]) => {
+    setMonths(ms => ms.map(m => (m.year === year && m.month === monthIdx) ? { ...m, goals } : m))
+    enqueue({ kind: 'goals', year, month: monthIdx })
+  }, [enqueue])
 
   // «›» avanza al mes siguiente en el calendario, no al siguiente de la lista: si
   // ese mes aún no existe, en vez de dejar la flecha muerta ofrecemos crearlo.
@@ -778,25 +864,30 @@ export default function App() {
     setMonths(ms => [...ms, newMonth])
     setActiveIdx(newIdx)
     setViewMode('month')
-    // Mark as already-saved-as-of-this-object before firing the save, so the
-    // debounced autosave effect (which also reacts to `months` changing) sees
-    // this exact reference as "nothing to do" and doesn't fire a second,
-    // redundant save for the same brand-new month.
-    lastSavedMonths.current.set(`${year}-${monthIdx}`, newMonth)
-    if (userId) saveMonthSerialized(newMonth, 'addMonth').catch(console.error)
+    // Crear es una intención propia, completamente separada de editar un día.
+    // En el servidor `create_month` solo inserta: si el mes ya existiera, la
+    // llamada se rechaza y recargamos, en vez de sobrescribir lo que hubiera.
+    enqueue({ kind: 'create', year, month: monthIdx })
   }
 
   const deleteMonth = (idx: number) => {
     if (months.length <= 1) return
     const m = months[idx]
+    const withContent = m.days.filter(d => d.highlight !== '').length
+    const ok = window.confirm(
+      `¿Eliminar ${MONTHS_ES[m.month]} '${String(m.year).slice(2)}?\n\n` +
+      `${m.days.length} días, ${m.habits.length} hábitos` +
+      (withContent > 0 ? `, ${withContent} con anotación en el diario` : '') +
+      `.\n\nSe guarda una copia recuperable antes de borrar.`
+    )
+    if (!ok) return
     setMonths(ms => ms.filter((_, i) => i !== idx))
     setActiveIdx(ai => {
       if (idx < ai) return ai - 1
       if (idx === ai) return Math.max(0, idx - 1)
       return ai
     })
-    lastSavedMonths.current.delete(`${m.year}-${m.month}`)
-    if (userId) deleteMonthFromDB(supabase, userId, m.year, m.month).catch(console.error)
+    if (userId) deleteMonthFromDB(supabase, m.year, m.month).catch(console.error)
   }
 
   // ── Navigation helpers ────────────────────────────────────────────────────────
@@ -820,7 +911,8 @@ export default function App() {
     await signOut()
   }
 
-  if (loading || !month) return <LoadingScreen />
+  if (status === 'error') return <LoadErrorScreen message={loadError} onRetry={() => void loadData()} />
+  if (status === 'loading' || !month) return <LoadingScreen />
 
   // ── Mobile navigation derivation ──────────────────────────────────────────────
   const tabEmail = user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? 'u'
@@ -875,11 +967,25 @@ export default function App() {
           {viewMode === 'stats' ? (
             <StatsView month={month} isMobile={isMobile} />
           ) : viewMode === 'edit' ? (
-            <EditView month={month} setMonth={setMonth} isMobile={isMobile} />
+            <EditView
+              month={month}
+              onHabitsChange={(habits, days) => updateHabits(month.year, month.month, habits, days)}
+              onGoalsChange={goals => updateGoals(month.year, month.month, goals)}
+              isMobile={isMobile}
+            />
           ) : effectiveLayout === 'table' ? (
-            <TableLayout month={month} setMonth={setMonth} density={tweaks.density} />
+            <TableLayout
+              month={month}
+              onDayChange={(day, patch) => updateDay(month.year, month.month, day, patch)}
+              density={tweaks.density}
+            />
           ) : (
-            <JournalLayout month={month} setMonth={setMonth} density={tweaks.density} isMobile={isMobile} />
+            <JournalLayout
+              month={month}
+              onDayChange={(day, patch) => updateDay(month.year, month.month, day, patch)}
+              density={tweaks.density}
+              isMobile={isMobile}
+            />
           )}
         </div>
       </main>
@@ -914,11 +1020,7 @@ export default function App() {
         <TweakRadio label="Vista del mes" value={layout} onChange={v => setLayout(v as LayoutType)} options={[{ value: 'table', label: 'Tabla' }, { value: 'journal', label: 'Bitácora' }]} />
       </TweaksPanel>
 
-      {saveError && (
-        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100, background: '#E05252', color: '#fff', padding: '10px 20px', borderRadius: 10, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,.4)', maxWidth: 420, textAlign: 'center' }}>
-          Error al guardar en Supabase: {saveError}
-        </div>
-      )}
+      <SyncIndicator sync={sync} onRetry={flushNow} />
 
       {showAccount && (
         <AccountPanel
