@@ -476,6 +476,16 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
               </div>
             )}
           </div>
+
+          {/* Apple exige que la política de privacidad sea accesible, y en el
+              binario nativo no existe la landing: este es el único camino.
+              URLs absolutas a propósito, para que funcionen igual en el navegador
+              y dentro del WebView, donde el origen es capacitor://localhost. */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 18, paddingTop: 2 }}>
+            {[{ href: 'https://osmin.es/privacidad', label: 'Privacidad' }, { href: 'https://osmin.es/terminos', label: 'Términos' }].map(l => (
+              <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)', textDecoration: 'none' }}>{l.label}</a>
+            ))}
+          </div>
         </div>
 
         {toast && (
