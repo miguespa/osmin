@@ -908,9 +908,18 @@ export default function App() {
   // ── Account actions ───────────────────────────────────────────────────────────
   const handleLogout = () => signOut()
 
+  // La directriz 5.1.1(v) de Apple exige poder borrar la *cuenta*, no solo sus
+  // datos. Primero el contenido en Supabase, que necesita un JWT todavía válido,
+  // y después la cuenta de Clerk. `user.delete()` destruye ya la sesión, así que
+  // solo hace falta cerrar sesión a mano si ese borrado falla.
   const handleDeleteAccount = async () => {
     if (userId) await deleteAllUserData(supabase, userId).catch(console.error)
-    await signOut()
+    try {
+      await user?.delete()
+    } catch (err) {
+      console.error('[Osmin] user.delete() failed:', err)
+      await signOut()
+    }
   }
 
   if (status === 'error') return <LoadErrorScreen message={loadError} onRetry={() => void loadData()} />

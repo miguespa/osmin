@@ -350,7 +350,13 @@ export function saveUiStateToDB(supabase: SupabaseClient, userId: string, year: 
 // ── Delete all user data ──────────────────────────────────────────────────────
 export async function deleteAllUserData(supabase: SupabaseClient, userId: string): Promise<void> {
   await Promise.all([
+    // months arrastra en cascada days, habits y goals.
     supabase.from('months').delete().eq('user_id', userId),
+    // month_snapshots NO tiene FK contra months: es append-only justamente para
+    // sobrevivir al borrado de un mes y poder recuperarlo. Esa decisión es
+    // correcta para borrar un mes y equivocada para borrar la cuenta, así que
+    // aquí hay que barrerla a mano o el contenido del usuario sobrevive.
+    supabase.from('month_snapshots').delete().eq('user_id', userId),
     supabase.from('tweaks').delete().eq('user_id', userId),
     supabase.from('ui_state').delete().eq('user_id', userId),
     supabase.from('login_events').delete().eq('user_id', userId),
