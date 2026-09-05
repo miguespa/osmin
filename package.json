@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:native": "npm run build && node scripts/build-native.mjs"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.1",
     "@clerk/clerk-react": "^5.61.7",
     "@clerk/localizations": "^4.6.8",
     "@supabase/supabase-js": "^2.106.1",
@@ -17,6 +19,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "@types/node": "^26.0.1",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
