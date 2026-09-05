@@ -692,6 +692,9 @@ export default function App() {
 
 
   // ── Sync user profile + log login event ──────────────────────────────────────
+  // El evento espera al perfil: `login_events.user_id` tiene FK contra `users.id`,
+  // así que lanzar ambas a la vez hace que en un usuario nuevo el insert del
+  // evento pierda la carrera y muera por clave foránea.
   useEffect(() => {
     if (!userId || !user) return
     const email = user.primaryEmailAddress?.emailAddress
@@ -703,8 +706,7 @@ export default function App() {
       lastName: user.lastName ?? null,
       imageUrl: user.imageUrl ?? '',
       clerkCreatedAt: user.createdAt ? new Date(user.createdAt) : null,
-    })
-    recordLoginEvent(supabase, userId)
+    }).then(() => recordLoginEvent(supabase, userId))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
