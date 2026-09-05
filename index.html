@@ -409,6 +409,9 @@ footer {
 }
 .footer-logo img { height: 22px; width: auto; filter: brightness(0) invert(1) opacity(.5); }
 .footer-copy { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--text-muted); }
+.footer-legal { display: flex; gap: 16px; }
+.footer-legal a { font-size: 11.5px; color: var(--text-muted); text-decoration: none; }
+.footer-legal a:hover { color: var(--text-soft); }
 
 /* ── ANIMATIONS ──────────────────────────────────── */
 .fu { opacity: 0; transform: translateY(20px); transition: opacity .5s ease, transform .5s ease; }
@@ -689,6 +692,10 @@ footer {
     <img src="/logo.png" alt="Osmin">
   </a>
   <span class="footer-copy">© 2025 Osmin</span>
+  <nav class="footer-legal">
+    <a href="/privacidad">Privacidad</a>
+    <a href="/terminos">Términos</a>
+  </nav>
 </footer>
 
 <script>
