@@ -32,6 +32,12 @@ if (isNative) {
     .catch(err => console.error('[Osmin] no se pudo ocultar el accessory bar:', err))
 }
 
+// Los avisos programados no sobreviven a una reinstalación, así que al arrancar
+// se comprueba que el que dice la preferencia sigue en pie.
+if (isNative) {
+  void import('./lib/reminder').then(({ restoreReminder }) => restoreReminder())
+}
+
 /**
  * El tema y el acento viven en Supabase y no se conocen hasta después de
  * iniciar sesión, así que App.tsx los deja cacheados en local y aquí se

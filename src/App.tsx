@@ -7,8 +7,10 @@ import { StatsView, EditView } from './components/OverviewView'
 import { TweaksPanel, TweakSection, TweakRadio, TweakColor, useTweaks } from './components/TweaksPanel'
 import { OnboardingFlow } from './components/OnboardingFlow'
 import { BottomTabBar, type MobileTab } from './components/BottomTabBar'
+import DailyReminderCard from './components/DailyReminderCard'
 import { useIsMobile } from './hooks/useIsMobile'
 import { makeSupabaseClient } from './lib/supabase'
+import { supportsReminders } from './lib/reminder'
 import { fetchAllDataWithRetry, deleteMonthFromDB, saveTweaksToDB, saveUiStateToDB, deleteAllUserData, upsertUserProfile, recordLoginEvent } from './lib/db'
 import { useWriteQueue, type SyncStatus } from './hooks/useWriteQueue'
 import type { Month, Day, Habit, Goal, Tweaks, LayoutType, ViewMode, LoadStatus } from './types'
@@ -442,6 +444,8 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
               </div>
             ))}
           </div>
+
+          {supportsReminders() && <DailyReminderCard />}
 
           <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
             {isMobile && onOpenTweaks && (
