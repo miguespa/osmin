@@ -32,6 +32,17 @@ if (isNative) {
     .catch(err => console.error('[Osmin] no se pudo ocultar el accessory bar:', err))
 }
 
+/**
+ * En nativo se oculta Google. Su OAuth redirige fuera del WebView y iOS se
+ * queda esa navegación, así que el usuario acabaría en Safari y volvería sin
+ * sesión. Apple sí tiene camino nativo vía `oauth_token_apple`, y el email con
+ * código funciona entero dentro de la app.
+ */
+const SIGN_IN_APPEARANCE = {
+  variables: { colorPrimary: '#C97A2A' },
+  ...(isNative ? { elements: { socialButtonsBlockButton__google: { display: 'none' } } } : {}),
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ClerkProvider
@@ -54,7 +65,7 @@ createRoot(document.getElementById('root')!).render(
             padding: 'max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom))',
           }}
         >
-          <SignIn routing="virtual" appearance={{ variables: { colorPrimary: '#C97A2A' } }} />
+          <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
         </div>
       </SignedOut>
     </ClerkProvider>
