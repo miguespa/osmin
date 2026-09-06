@@ -8,9 +8,12 @@ import { TweaksPanel, TweakSection, TweakRadio, TweakColor, useTweaks } from './
 import { OnboardingFlow } from './components/OnboardingFlow'
 import { BottomTabBar, type MobileTab } from './components/BottomTabBar'
 import DailyReminderCard from './components/DailyReminderCard'
+import AppLockCard from './components/AppLockCard'
 import { useIsMobile } from './hooks/useIsMobile'
 import { makeSupabaseClient } from './lib/supabase'
 import { supportsReminders } from './lib/reminder'
+import { isLockEnabled, supportsLock, vigilarSegundoPlano } from './lib/appLock'
+import LockScreen from './components/LockScreen'
 import { fetchAllDataWithRetry, deleteMonthFromDB, saveTweaksToDB, saveUiStateToDB, deleteAllUserData, upsertUserProfile, recordLoginEvent } from './lib/db'
 import { useWriteQueue, type SyncStatus } from './hooks/useWriteQueue'
 import type { Month, Day, Habit, Goal, Tweaks, LayoutType, ViewMode, LoadStatus } from './types'
@@ -440,6 +443,7 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
           </div>
 
           {supportsReminders() && <DailyReminderCard />}
+          {supportsLock() && <AppLockCard />}
 
           <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
             {isMobile && onOpenTweaks && (
@@ -651,6 +655,17 @@ export default function App() {
   const { userId, getToken } = useAuth()
   const { user } = useUser()
   const { signOut } = useClerk()
+
+  /**
+   * Cerradura biométrica. Arranca echada si el usuario la tiene activada, y
+   * vuelve a echarse al regresar de segundo plano tras un rato. Es una puerta
+   * local: la sesión de Clerk sigue viva por detrás.
+   */
+  const [bloqueada, setBloqueada] = useState(() => supportsLock() && isLockEnabled())
+  useEffect(() => {
+    if (!supportsLock() || !isLockEnabled()) return
+    return vigilarSegundoPlano(() => setBloqueada(true))
+  }, [])
 
   // Keep getToken reference stable so the Supabase client created once always has the latest token
   const getTokenRef = useRef(getToken)
@@ -936,6 +951,10 @@ export default function App() {
       await signOut()
     }
   }
+
+  // Antes que ninguna otra pantalla: bloqueada no se enseña nada, ni siquiera
+  // el «Cargando…», que ya deja ver que hay una cuenta detrás.
+  if (bloqueada) return <LockScreen onUnlock={() => setBloqueada(false)} onSignOut={handleLogout} />
 
   if (status === 'error') return <LoadErrorScreen message={loadError} onRetry={() => void loadData()} />
   if (status === 'loading' || !month) return <LoadingScreen />

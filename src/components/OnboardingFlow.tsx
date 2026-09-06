@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { applyReminder, DEFAULT_REMINDER, supportsReminders } from '../lib/reminder'
+import { comprobarBiometria, setLockEnabled, supportsLock, verificar } from '../lib/appLock'
 
 interface Props {
   onComplete: () => void
@@ -215,11 +217,119 @@ function StepDone() {
   )
 }
 
+/** Interruptor con la paleta del onboarding, que es más oscura que la del panel. */
+function ObSwitch({ on, busy, onClick, label }: { on: boolean; busy: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={busy}
+      onClick={onClick}
+      style={{
+        flexShrink: 0, width: 44, height: 26, padding: 3, border: 'none', borderRadius: 13,
+        cursor: busy ? 'wait' : 'pointer', background: on ? GREEN : 'rgba(255,255,255,.16)',
+        transition: 'background 160ms', display: 'flex', justifyContent: on ? 'flex-end' : 'flex-start',
+      }}
+    >
+      <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'all 160ms' }} />
+    </button>
+  )
+}
+
+function ObFila({ titulo, texto, on, busy, onToggle, aviso }: {
+  titulo: string; texto: string; on: boolean; busy: boolean; onToggle: () => void; aviso?: string
+}) {
+  return (
+    <div style={{ padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+        <div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,.9)' }}>{titulo}</div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: 'rgba(255,255,255,.5)', marginTop: 5, lineHeight: 1.5 }}>{texto}</div>
+        </div>
+        <ObSwitch on={on} busy={busy} onClick={onToggle} label={titulo} />
+      </div>
+      {aviso && (
+        <div style={{ marginTop: 10, fontFamily: 'Inter, sans-serif', fontSize: 12, color: AMBER, lineHeight: 1.5 }}>{aviso}</div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Las dos funciones que solo existen en el móvil. Se preguntan aquí, de una vez,
+ * en lugar de asaltar al usuario con permisos sueltos: el recordatorio abre el
+ * diálogo de notificaciones y el bloqueo pide la cara, y ambos se entienden
+ * mejor sabiendo para qué son.
+ */
+function StepMovil() {
+  const [aviso, setAviso] = useState(false)
+  const [bloqueo, setBloqueo] = useState(false)
+  const [ocupado, setOcupado] = useState<'aviso' | 'bloqueo' | null>(null)
+  const [nombre, setNombre] = useState('Face ID')
+  const [hayBiometria, setHayBiometria] = useState(false)
+  const [denegado, setDenegado] = useState(false)
+
+  useEffect(() => {
+    void comprobarBiometria().then(b => { setHayBiometria(b.disponible); setNombre(b.nombre) })
+  }, [])
+
+  const toggleAviso = async () => {
+    setOcupado('aviso')
+    setDenegado(false)
+    const r = await applyReminder({ enabled: !aviso, time: DEFAULT_REMINDER.time })
+    setAviso(r.enabled)
+    if (!aviso && !r.enabled) setDenegado(true)
+    setOcupado(null)
+  }
+
+  const toggleBloqueo = async () => {
+    setOcupado('bloqueo')
+    const ok = await verificar()
+    if (ok) { setLockEnabled(!bloqueo); setBloqueo(!bloqueo) }
+    setOcupado(null)
+  }
+
+  return (
+    <div>
+      <div style={{ fontFamily: 'Instrument Serif, serif', fontSize: 26, color: 'rgba(255,255,255,.92)', lineHeight: 1.15 }}>
+        Dos cosas antes de empezar
+      </div>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13.5, color: 'rgba(255,255,255,.5)', marginTop: 10, lineHeight: 1.6 }}>
+        Puedes cambiarlas cuando quieras desde tu cuenta.
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <ObFila
+          titulo="Recordatorio diario"
+          texto={`Un aviso a las ${DEFAULT_REMINDER.time} para cerrar el día. Quien lo configura tiene el doble de cumplimiento.`}
+          on={aviso}
+          busy={ocupado === 'aviso'}
+          onToggle={() => void toggleAviso()}
+          aviso={denegado ? 'iOS ha bloqueado las notificaciones. Se activan en Ajustes → Osmin.' : undefined}
+        />
+        {hayBiometria && (
+          <ObFila
+            titulo={`Bloquear con ${nombre}`}
+            texto="Tu diario guarda cosas personales, así que te recomendamos cerrarlo con llave. Tú decides."
+            on={bloqueo}
+            busy={ocupado === 'bloqueo'}
+            onToggle={() => void toggleBloqueo()}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 const STEPS = [
   { id: 'welcome', title: '',           component: StepWelcome },
   { id: 'diary',   title: 'Diario',     component: StepDiary   },
   { id: 'habits',  title: 'Hábitos',    component: StepHabits  },
   { id: 'manage',  title: 'Gestionar',  component: StepManage  },
+  ...(supportsLock() || supportsReminders()
+    ? [{ id: 'movil', title: 'En tu móvil', component: StepMovil }]
+    : []),
   { id: 'done',    title: '',           component: StepDone    },
 ]
 
