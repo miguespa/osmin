@@ -9,7 +9,7 @@
  * Los assets conservan su ruta absoluta (/assets/...) porque en Capacitor la
  * raíz del bundle se sirve como /, así que resuelven sin tocar nada.
  */
-import { cp, rm, mkdir, access } from 'node:fs/promises'
+import { cp, rm, mkdir, access, readdir } from 'node:fs/promises'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -31,12 +31,15 @@ await mkdir(out, { recursive: true })
 await cp(join(dist, 'app', 'index.html'), join(out, 'index.html'))
 await cp(join(dist, 'assets'), join(out, 'assets'), { recursive: true })
 
-// Páginas legales y logo, si están: Apple exige la política accesible y
-// conviene poder enlazarla desde dentro de la app sin salir al navegador.
-for (const extra of ['privacidad', 'terminos', 'logo.png']) {
-  if (await exists(join(dist, extra))) {
-    await cp(join(dist, extra), join(out, extra), { recursive: true })
-  }
+// Todo lo demás que haya en la raíz del build: las páginas legales —Apple exige
+// la política accesible y conviene enlazarla sin salir de la app— y lo que Vite
+// copie de public/, como los logotipos. Se lleva la carpeta entera en vez de una
+// lista fija porque esa lista se olvida: el logo para el tema oscuro ya se quedó
+// fuera una vez, y en la app se ve como una imagen rota.
+const RAIZ_SUSTITUIDA = new Set(['app', 'index.html', 'assets'])
+for (const entrada of await readdir(dist)) {
+  if (RAIZ_SUSTITUIDA.has(entrada)) continue
+  await cp(join(dist, entrada), join(out, entrada), { recursive: true })
 }
 
 console.log('[build-native] dist-native/ listo')

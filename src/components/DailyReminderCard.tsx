@@ -34,13 +34,19 @@ export default function DailyReminderCard() {
 
   return (
     <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
         <div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
-            Recordatorio diario
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="var(--accent)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M7.5 1.6a4 4 0 00-4 4v2.2L2.3 10.3h10.4L11.5 7.8V5.6a4 4 0 00-4-4z" />
+              <path d="M6.1 12.2a1.5 1.5 0 002.8 0" />
+            </svg>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>
+              Recordatorio diario
+            </div>
           </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)', marginTop: 5, lineHeight: 1.45 }}>
-            Un aviso en el móvil para no dejar el día sin anotar.
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
+            Un aviso a tu hora para cerrar el día antes de que se te pase.
           </div>
         </div>
 
@@ -67,6 +73,18 @@ export default function DailyReminderCard() {
           <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'all 160ms' }} />
         </button>
       </div>
+
+      {!reminder.enabled && (
+        <div style={{ marginTop: 14, padding: '11px 12px', background: 'var(--surface-alt)', border: '1px solid var(--line-soft)', borderRadius: 9 }}>
+          <span style={{ display: 'inline-block', fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, fontWeight: 600, letterSpacing: '.05em', color: 'var(--accent)', background: 'rgba(201,122,42,.12)', border: '1px solid rgba(201,122,42,.28)', borderRadius: 5, padding: '2px 8px' }}>
+            LO QUE MÁS AYUDA
+          </span>
+          <p style={{ margin: '9px 0 0', fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-soft)', lineHeight: 1.5 }}>
+            Ponerle hora a un hábito es lo que separa proponérselo de hacerlo.
+            Elige la tuya y deja de depender de acordarte.
+          </p>
+        </div>
+      )}
 
       {reminder.enabled && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line-soft)' }}>

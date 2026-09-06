@@ -14,15 +14,9 @@ import { supportsReminders } from './lib/reminder'
 import { fetchAllDataWithRetry, deleteMonthFromDB, saveTweaksToDB, saveUiStateToDB, deleteAllUserData, upsertUserProfile, recordLoginEvent } from './lib/db'
 import { useWriteQueue, type SyncStatus } from './hooks/useWriteQueue'
 import type { Month, Day, Habit, Goal, Tweaks, LayoutType, ViewMode, LoadStatus } from './types'
-import logoUrl from '/logo.png'
+import Logo from './components/Logo'
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
-function Logo() {
-  return (
-    <img src={logoUrl} alt="Osmin" style={{ height: 36, width: 'auto', display: 'block', filter: 'brightness(0) invert(1) opacity(0.88)' }} />
-  )
-}
-
 // ── NewMonthPicker ─────────────────────────────────────────────────────────────
 function NewMonthPicker({ suggested, months, onConfirm, onCancel }: {
   suggested: { year: number; month: number }
@@ -140,7 +134,7 @@ function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, viewM
   return (
     <aside style={{ width: 224, flexShrink: 0, background: 'var(--sidebar)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column', padding: '0 10px 14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '14px 10px 16px' }}>
-        <Logo />
+        <Logo height={36} style={{ display: 'block' }} />
       </div>
 
       {sectionTitle('Vista')}
@@ -399,7 +393,7 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.48)', backdropFilter: 'blur(3px)', animation: 'acOverlayIn 200ms ease forwards' }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 50, width: isMobile ? '100vw' : 400, maxWidth: isMobile ? '100vw' : '95vw', background: 'var(--bg-app)', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column', overflowY: 'auto', boxShadow: '-20px 0 60px rgba(0,0,0,.4)', animation: 'acPanelIn 260ms cubic-bezier(.3,.7,.4,1) forwards' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 20px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--bg-app)', zIndex: 2 }}>
-          <img src={logoUrl} alt="Osmin" style={{ height: 22, filter: 'brightness(0) invert(1) opacity(.88)' }} />
+          <Logo height={22} />
           <button onClick={onClose} style={{ width: 30, height: 30, border: '1px solid var(--line)', background: 'transparent', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1L1 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
@@ -504,7 +498,7 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
 function LoadingScreen() {
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', flexDirection: 'column', gap: 20 }}>
-      <img src={logoUrl} alt="Osmin" style={{ height: 40, filter: 'brightness(0) invert(1) opacity(0.7)' }} />
+      <Logo height={40} style={{ opacity: 0.7 }} />
       <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'var(--text-muted)' }}>Cargando…</div>
     </div>
   )
@@ -518,7 +512,7 @@ function LoadErrorScreen({ message, onRetry }: { message: string; onRetry: () =>
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', padding: 24 }}>
       <div style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-        <img src={logoUrl} alt="Osmin" style={{ height: 34, filter: 'brightness(0) invert(1) opacity(0.7)', marginBottom: 22 }} />
+        <Logo height={34} style={{ opacity: 0.7, marginBottom: 22, marginInline: 'auto' }} />
         <h1 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 27, color: 'var(--text)', lineHeight: 1.15 }}>
           No hemos podido cargar tus datos
         </h1>

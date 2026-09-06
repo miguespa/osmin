@@ -1,4 +1,8 @@
 import { Capacitor } from '@capacitor/core'
+// Import estático a propósito. Cargarlo con `await import(...)` dentro del
+// WebView deja la promesa pendiente para siempre: ni resuelve ni falla, así que
+// el interruptor se quedaba pulsado sin programar nada y sin dar ningún error.
+import { LocalNotifications } from '@capacitor/local-notifications'
 
 /**
  * Recordatorio diario. Es una notificación local: la programa el propio
@@ -42,8 +46,6 @@ const writeReminder = (r: Reminder) => {
   try { localStorage.setItem(KEY, JSON.stringify(r)) } catch { /* almacenamiento no disponible */ }
 }
 
-const plugin = async () => (await import('@capacitor/local-notifications')).LocalNotifications
-
 /**
  * Deja el aviso del teléfono igual que la preferencia recibida y la guarda.
  * Devuelve lo que ha quedado: si el usuario deniega el permiso vuelve apagado,
@@ -52,7 +54,6 @@ const plugin = async () => (await import('@capacitor/local-notifications')).Loca
 export async function applyReminder(next: Reminder): Promise<Reminder> {
   if (!supportsReminders()) return next
 
-  const LocalNotifications = await plugin()
   await LocalNotifications.cancel({ notifications: [{ id: ID }] })
 
   if (!next.enabled) {
@@ -93,7 +94,6 @@ export async function restoreReminder(): Promise<void> {
   const saved = readReminder()
   if (!saved.enabled) return
   try {
-    const LocalNotifications = await plugin()
     const { notifications } = await LocalNotifications.getPending()
     if (notifications.some(n => n.id === ID)) return
     await applyReminder(saved)

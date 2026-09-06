@@ -6,6 +6,8 @@ import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App'
 
+import logoDark from '/logo-dark.png'
+
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string
 
 /**
@@ -56,6 +58,24 @@ const token = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
 /**
+ * El acceso va siempre en oscuro, sea cual sea el tema que tenga guardado el
+ * usuario: es la portada de la app y conviene que quien la abre por primera vez
+ * vea siempre lo mismo. Los valores son los de html[data-theme="dark"] en
+ * index.css; se repiten aquí porque el tema del documento puede ser el claro.
+ *
+ * El acento sí se respeta, que es lo único que cada uno personaliza y sobrevive
+ * en localStorage entre sesiones.
+ */
+const DARK = {
+  bg: '#16161A',
+  surface: '#1E1E22',
+  surfaceAlt: '#232328',
+  text: '#ECEAE4',
+  textMuted: '#82807A',
+  line: '#2C2C32',
+}
+
+/**
  * En nativo se ocultan los botones sociales enteros, y con ellos su separador.
  * Todos hacen OAuth por redirección, y esa navegación se le escapa al WebView:
  * iOS la abre en Safari y la sesión se queda allí. Queda el email con código,
@@ -69,26 +89,31 @@ const token = (name: string) =>
  */
 const SIGN_IN_APPEARANCE = {
   variables: {
-    colorPrimary: token('--accent'),
-    colorBackground: token('--surface'),
-    colorText: token('--text'),
-    colorTextSecondary: token('--text-muted'),
-    colorInputBackground: token('--surface-alt'),
-    colorInputText: token('--text'),
-    colorNeutral: token('--text'),
-    colorBorder: token('--line'),
+    colorPrimary: token('--accent') || '#C97A2A',
+    colorBackground: DARK.surface,
+    colorText: DARK.text,
+    colorTextSecondary: DARK.textMuted,
+    colorInputBackground: DARK.surfaceAlt,
+    colorInputText: DARK.text,
+    colorNeutral: DARK.text,
+    colorBorder: DARK.line,
     fontFamily: "'Inter', -apple-system, sans-serif",
   },
-  ...(isNative
-    ? { elements: { socialButtons: { display: 'none' }, dividerRow: { display: 'none' } } }
-    : {}),
+  elements: {
+    // La tarjeta ya va dentro de un bloque que trae su propio encabezado.
+    header: { display: 'none' },
+    // En nativo se van los sociales enteros, y con ellos su separador.
+    ...(isNative ? { socialButtons: { display: 'none' }, dividerRow: { display: 'none' } } : {}),
+  },
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
-      localization={esES}
+      // El marcador que trae la traducción no cabe en la anchura del móvil y
+      // se corta a media palabra.
+      localization={{ ...esES, formFieldInputPlaceholder__emailAddress: 'tucorreo@ejemplo.com' }}
       signInFallbackRedirectUrl={APP_URL}
       signUpFallbackRedirectUrl={APP_URL}
     >
@@ -102,11 +127,37 @@ createRoot(document.getElementById('root')!).render(
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'var(--bg-app)',
-            padding: 'max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom))',
+            background: DARK.bg,
+            padding: 'max(32px, env(safe-area-inset-top)) 22px max(32px, env(safe-area-inset-bottom))',
           }}
         >
-          <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
+          <div style={{ width: '100%', maxWidth: 360 }}>
+            <div style={{ textAlign: 'center' }}>
+              {/* Siempre la versión para oscuro: este bloque no sigue al tema. */}
+              <img
+                src={logoDark}
+                alt="Osmin"
+                style={{ height: 38, width: 'auto', display: 'inline-block' }}
+              />
+              <p
+                style={{
+                  margin: '16px 0 0',
+                  fontFamily: "'Inter', -apple-system, sans-serif",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  color: DARK.textMuted,
+                }}
+              >
+                Tus hábitos y tu diario,
+                <br />
+                un día detrás de otro.
+              </p>
+            </div>
+
+            <div style={{ marginTop: 26 }}>
+              <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
+            </div>
+          </div>
         </div>
       </SignedOut>
     </ClerkProvider>
