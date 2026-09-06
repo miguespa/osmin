@@ -15,3 +15,7 @@ Thumbs.db
 
 # Tooling
 .claude/
+
+# Capacitor
+dist-native/
+ios/App/App/public/
