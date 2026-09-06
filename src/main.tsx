@@ -98,6 +98,14 @@ createRoot(document.getElementById('root')!).render(
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
       localization={esES}
+      /**
+       * En nativo el WebView sirve desde un esquema propio, así que lo que Clerk
+       * guarde en clerk.osmin.es son cookies de terceros. Con esto deja de
+       * apoyarse en ellas y lleva la sesión en la cabecera Authorization, que es
+       * como habla con las apps nativas; `oauth_token_apple` solo se acepta por
+       * esa vía.
+       */
+      standardBrowser={!isNative}
       signInFallbackRedirectUrl={APP_URL}
       signUpFallbackRedirectUrl={APP_URL}
     >
