@@ -137,7 +137,7 @@ function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, viewM
   return (
     <aside style={{ width: 224, flexShrink: 0, background: 'var(--sidebar)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column', padding: '0 10px 14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '14px 10px 16px' }}>
-        <Logo height={36} style={{ display: 'block' }} />
+        <Logo height={36} />
       </div>
 
       {sectionTitle('Vista')}

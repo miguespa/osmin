@@ -117,7 +117,15 @@ input::placeholder { color: var(--text-muted); opacity: 1; }
 .osmin-cell:active { transform: scale(0.96); }
 html[data-density="compact"] .osmin-cell { transform: none; }
 
-/* Ver components/Logo.tsx: cada tema tiene su fichero y aquí se elige. */
-.osmin-logo--dark { display: none; }
-html[data-theme="dark"] .osmin-logo--light { display: none; }
-html[data-theme="dark"] .osmin-logo--dark { display: block; }
+/*
+ * Ver components/Logo.tsx: se pintan las dos versiones del logotipo y aquí se
+ * elige la del tema.
+ *
+ * El !important no es pereza: quien use <Logo> puede pasarle estilos, y un
+ * `display` en línea gana a esta regla y deja los dos visibles a la vez. Pasó,
+ * y solo se notaba en escritorio.
+ */
+.osmin-logo { display: block; }
+.osmin-logo--dark { display: none !important; }
+html[data-theme="dark"] .osmin-logo--light { display: none !important; }
+html[data-theme="dark"] .osmin-logo--dark { display: block !important; }
