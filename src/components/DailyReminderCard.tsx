@@ -5,6 +5,13 @@ import { applyReminder, readReminder, type Reminder } from '../lib/reminder'
  * Ajuste del recordatorio diario, dentro del panel de cuenta. Solo se pinta en
  * el binario nativo: quien decide si se muestra es AccountPanel.
  */
+/**
+ * Nota sobre «el doble de cumplimiento»: es una afirmación de producto, no un
+ * dato medido —hoy no se puede medir, porque la preferencia del recordatorio
+ * vive solo en el dispositivo y no hay forma de cruzarla con lo que cada uno
+ * completa—. Para sostenerla con datos propios haría falta guardar también en
+ * Supabase quién lo tiene activo y comparar el cumplimiento de unos y otros.
+ */
 export default function DailyReminderCard() {
   const [reminder, setReminder] = useState<Reminder>(readReminder)
   const [busy, setBusy] = useState(false)
@@ -77,11 +84,11 @@ export default function DailyReminderCard() {
       {!reminder.enabled && (
         <div style={{ marginTop: 14, padding: '11px 12px', background: 'var(--surface-alt)', border: '1px solid var(--line-soft)', borderRadius: 9 }}>
           <span style={{ display: 'inline-block', fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, fontWeight: 600, letterSpacing: '.05em', color: 'var(--accent)', background: 'rgba(201,122,42,.12)', border: '1px solid rgba(201,122,42,.28)', borderRadius: 5, padding: '2px 8px' }}>
-            LO QUE MÁS AYUDA
+            MARCA LA DIFERENCIA
           </span>
           <p style={{ margin: '9px 0 0', fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: 'var(--text-soft)', lineHeight: 1.5 }}>
-            Ponerle hora a un hábito es lo que separa proponérselo de hacerlo.
-            Elige la tuya y deja de depender de acordarte.
+            Los usuarios que configuran una revisión diaria tienen el doble de
+            cumplimiento. Elige tu hora y deja de depender de acordarte.
           </p>
         </div>
       )}

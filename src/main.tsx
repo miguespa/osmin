@@ -148,9 +148,9 @@ createRoot(document.getElementById('root')!).render(
                   color: DARK.textMuted,
                 }}
               >
-                Tus hábitos y tu diario,
+                Tu vida en orden.
                 <br />
-                un día detrás de otro.
+                Hábitos, metas y diario.
               </p>
             </div>
 
