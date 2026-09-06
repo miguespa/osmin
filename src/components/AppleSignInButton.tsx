@@ -3,11 +3,18 @@ import { useSignIn, useSignUp } from '@clerk/clerk-react'
 import { AppleSignIn, isCanceled } from '../lib/appleSignIn'
 
 /**
- * El botón de Apple que trae `<SignIn>` hace el OAuth por redirección, y esa
- * navegación se le escapa al WebView: iOS la abre en Safari y la sesión se
- * queda allí. Por eso en el binario nativo se oculta el suyo y se pinta este,
- * que pide la autorización al sistema y canjea el token con Clerk sin salir
- * de la app.
+ * EN RESERVA: hoy no se pinta en ningún sitio. Ver main.tsx.
+ *
+ * Pide la autorización al sistema y canjea el identity token con Clerk sin
+ * salir de la app. La parte de Apple funciona —el token sale con el `aud`
+ * correcto—, pero Clerk contesta 403 authorization_invalid: `oauth_token_apple`
+ * solo la aceptan sus SDK nativos, que hablan con la Native API autenticando el
+ * cliente de otra forma, y desde el SDK web no hay manera de presentarse así.
+ *
+ * Se conserva junto a AppleSignInPlugin.swift y al entitlement porque el puente
+ * nativo sí quedó resuelto; lo que habría que cambiar es el canje, pasando al
+ * flujo por redirección contra es.osmin.app://callback, que Clerk ya tiene en
+ * la lista blanca de redirecciones SSO para flujos nativos.
  */
 
 /** Clerk responde esto cuando el Apple ID todavía no tiene cuenta en Osmin. */

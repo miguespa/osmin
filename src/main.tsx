@@ -5,7 +5,6 @@ import { esES } from '@clerk/localizations'
 import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App'
-import AppleSignInButton from './components/AppleSignInButton'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string
 
@@ -51,15 +50,16 @@ const token = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
 /**
- * En nativo se ocultan los botones sociales de Clerk enteros: los suyos hacen
- * OAuth por redirección, y esa navegación se le escapa al WebView —iOS la abre
- * en Safari y la sesión se queda allí—. Google se queda fuera sin más; Apple lo
- * sustituye `AppleSignInButton`, que pide la autorización al sistema. Queda el
- * email con código, que funciona entero dentro de la app.
+ * En nativo se ocultan los botones sociales enteros, y con ellos su separador.
+ * Todos hacen OAuth por redirección, y esa navegación se le escapa al WebView:
+ * iOS la abre en Safari y la sesión se queda allí. Queda el email con código,
+ * que funciona entero dentro de la app.
  *
- * Al vaciar la fila social sobran también su separador y el título de la
- * tarjeta, que se reemplaza por el de arriba para que el orden sea el de
- * siempre: título, Apple, «o», email.
+ * Apple tuvo aquí un botón propio contra `oauth_token_apple`, que Clerk solo
+ * acepta desde sus SDK nativos y rechaza con 403 desde el SDK web por mucho que
+ * la app esté registrada. El componente sigue en el repo, sin usar, junto al
+ * plugin de Swift y el entitlement, para cuando se retome por redirección.
+ * En la web sí funciona, y ahí se muestra con normalidad.
  */
 const SIGN_IN_APPEARANCE = {
   variables: {
@@ -74,23 +74,8 @@ const SIGN_IN_APPEARANCE = {
     fontFamily: "'Inter', -apple-system, sans-serif",
   },
   ...(isNative
-    ? {
-        elements: {
-          socialButtons: { display: 'none' },
-          dividerRow: { display: 'none' },
-          header: { display: 'none' },
-          card: { boxShadow: 'none', background: 'transparent', padding: 0 },
-        },
-      }
-    : {
-        elements: {
-          // En la web Apple sigue siendo un OAuth por redirección y la conexión
-          // está habilitada pero sin credenciales (Services ID y clave .p8), así
-          // que su botón saldría y fallaría al pulsarlo. Se oculta hasta
-          // completarlas; entonces basta con borrar estas tres líneas.
-          socialButtonsBlockButton__apple: { display: 'none' },
-        },
-      }),
+    ? { elements: { socialButtons: { display: 'none' }, dividerRow: { display: 'none' } } }
+    : {}),
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -98,14 +83,6 @@ createRoot(document.getElementById('root')!).render(
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
       localization={esES}
-      /**
-       * En nativo el WebView sirve desde un esquema propio, así que lo que Clerk
-       * guarde en clerk.osmin.es son cookies de terceros. Con esto deja de
-       * apoyarse en ellas y lleva la sesión en la cabecera Authorization, que es
-       * como habla con las apps nativas; `oauth_token_apple` solo se acepta por
-       * esa vía.
-       */
-      standardBrowser={!isNative}
       signInFallbackRedirectUrl={APP_URL}
       signUpFallbackRedirectUrl={APP_URL}
     >
@@ -123,39 +100,7 @@ createRoot(document.getElementById('root')!).render(
             padding: 'max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom))',
           }}
         >
-          <div style={{ width: '100%', maxWidth: 360 }}>
-            {isNative && (
-              <>
-                <h1
-                  style={{
-                    margin: '0 0 24px',
-                    textAlign: 'center',
-                    fontSize: 22,
-                    fontWeight: 600,
-                    color: 'var(--text)',
-                  }}
-                >
-                  Entra en Osmin
-                </h1>
-                <AppleSignInButton />
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    margin: '20px 0',
-                    color: 'var(--text-muted)',
-                    fontSize: 13,
-                  }}
-                >
-                  <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
-                  o
-                  <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
-                </div>
-              </>
-            )}
-            <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
-          </div>
+          <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
         </div>
       </SignedOut>
     </ClerkProvider>
