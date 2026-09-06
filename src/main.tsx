@@ -33,13 +33,40 @@ if (isNative) {
 }
 
 /**
+ * El tema y el acento viven en Supabase y no se conocen hasta después de
+ * iniciar sesión, así que App.tsx los deja cacheados en local y aquí se
+ * reaplican antes del primer pintado. Sin esto la pantalla de acceso sale
+ * siempre en claro, desentonando con el resto de la app.
+ */
+try {
+  const theme = localStorage.getItem('osmin_theme')
+  if (theme === 'dark' || theme === 'light') document.documentElement.dataset.theme = theme
+  const accent = localStorage.getItem('osmin_accent')
+  if (accent) document.documentElement.style.setProperty('--accent', accent)
+} catch { /* almacenamiento no disponible */ }
+
+/** Lee un token del tema ya aplicado, para no duplicar la paleta de index.css. */
+const token = (name: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+
+/**
  * En nativo se oculta Google. Su OAuth redirige fuera del WebView y iOS se
  * queda esa navegación, así que el usuario acabaría en Safari y volvería sin
  * sesión. Apple sí tiene camino nativo vía `oauth_token_apple`, y el email con
  * código funciona entero dentro de la app.
  */
 const SIGN_IN_APPEARANCE = {
-  variables: { colorPrimary: '#C97A2A' },
+  variables: {
+    colorPrimary: token('--accent'),
+    colorBackground: token('--surface'),
+    colorText: token('--text'),
+    colorTextSecondary: token('--text-muted'),
+    colorInputBackground: token('--surface-alt'),
+    colorInputText: token('--text'),
+    colorNeutral: token('--text'),
+    colorBorder: token('--line'),
+    fontFamily: "'Inter', -apple-system, sans-serif",
+  },
   ...(isNative ? { elements: { socialButtonsBlockButton__google: { display: 'none' } } } : {}),
 }
 

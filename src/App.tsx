@@ -778,6 +778,13 @@ export default function App() {
     document.documentElement.dataset.theme = tweaks.theme
     document.documentElement.dataset.density = tweaks.density
     document.documentElement.style.setProperty('--accent', tweaks.accent)
+    // Se cachean para que la pantalla de acceso pueda pintarse con el aspecto
+    // del usuario: las preferencias viven en Supabase y no se conocen hasta
+    // después de iniciar sesión, cuando este componente ya está montado.
+    try {
+      localStorage.setItem('osmin_theme', tweaks.theme)
+      localStorage.setItem('osmin_accent', tweaks.accent)
+    } catch { /* almacenamiento no disponible */ }
   }, [tweaks.theme, tweaks.density, tweaks.accent])
 
   // ── Escrituras dirigidas por la acción del usuario ───────────────────────────
