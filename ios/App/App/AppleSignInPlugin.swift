@@ -87,7 +87,10 @@ extension AppleSignInPlugin: ASAuthorizationControllerDelegate {
             if let authError = error as? ASAuthorizationError, authError.code == .canceled {
                 call.reject("Autorizacion cancelada", "canceled")
             } else {
-                call.reject(error.localizedDescription, "authorization_failed")
+                // El texto de ASAuthorizationError casi nunca dice nada util;
+                // el codigo numerico si (1000 sin cuenta, 1004 fallo del servidor...).
+                let ns = error as NSError
+                call.reject("\(ns.domain) \(ns.code): \(error.localizedDescription)", "authorization_failed")
             }
         }
     }

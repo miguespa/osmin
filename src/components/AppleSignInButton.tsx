@@ -13,6 +13,21 @@ import { AppleSignIn, isCanceled } from '../lib/appleSignIn'
 /** Clerk responde esto cuando el Apple ID todavía no tiene cuenta en Osmin. */
 const NOT_REGISTERED = new Set(['external_account_not_found', 'form_identifier_not_found'])
 
+/**
+ * Para saber si ha fallado Apple o Clerk. Sin esto el fallo es siempre el mismo
+ * mensaje y no hay forma de distinguir «el sistema no ha dado token» de
+ * «Clerk no reconoce esta app», que se arreglan en sitios muy distintos.
+ */
+const describe = (err: unknown): string => {
+  const clerk = (err as { errors?: { code?: string; message?: string }[] })?.errors
+  if (Array.isArray(clerk) && clerk.length) {
+    return `clerk/${clerk[0].code ?? '?'}: ${clerk[0].message ?? ''}`
+  }
+  const native = err as { code?: string; message?: string }
+  if (native?.code) return `apple/${native.code}: ${native.message ?? ''}`
+  return String((err as Error)?.message ?? err)
+}
+
 const isNotRegistered = (err: unknown) => {
   const errors = (err as { errors?: { code?: string }[] })?.errors
   return Array.isArray(errors) && errors.some(e => e.code && NOT_REGISTERED.has(e.code))
@@ -52,7 +67,7 @@ export default function AppleSignInButton() {
     } catch (err) {
       if (!isCanceled(err)) {
         console.error('[Osmin] falló el acceso con Apple:', err)
-        setError('No se ha podido entrar con Apple. Inténtalo de nuevo.')
+        setError(describe(err))
       }
     } finally {
       setBusy(false)
