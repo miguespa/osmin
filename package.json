@@ -13,6 +13,7 @@
   "dependencies": {
     "@capacitor/core": "^8.5.1",
     "@capacitor/ios": "^8.5.1",
+    "@capacitor/keyboard": "^8.0.5",
     "@clerk/clerk-react": "^5.61.7",
     "@clerk/localizations": "^4.6.8",
     "@supabase/supabase-js": "^2.106.1",

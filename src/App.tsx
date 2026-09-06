@@ -244,7 +244,7 @@ function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setVi
 }) {
   if (isMobile) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '14px 16px 12px', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px', borderBottom: '1px solid var(--line)' }}>
         <button onClick={onPrev} className="month-nav" aria-label="Mes anterior">‹</button>
         <button onClick={onOpenMonths} style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 8, background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
           <h1 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 28, lineHeight: 1, color: 'var(--text)', letterSpacing: '-0.01em' }}>
@@ -396,7 +396,7 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.48)', backdropFilter: 'blur(3px)', animation: 'acOverlayIn 200ms ease forwards' }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 50, width: isMobile ? '100vw' : 400, maxWidth: isMobile ? '100vw' : '95vw', background: 'var(--bg-app)', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column', overflowY: 'auto', boxShadow: '-20px 0 60px rgba(0,0,0,.4)', animation: 'acPanelIn 260ms cubic-bezier(.3,.7,.4,1) forwards' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--bg-app)', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 20px 16px', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, background: 'var(--bg-app)', zIndex: 2 }}>
           <img src={logoUrl} alt="Osmin" style={{ height: 22, filter: 'brightness(0) invert(1) opacity(.88)' }} />
           <button onClick={onClose} style={{ width: 30, height: 30, border: '1px solid var(--line)', background: 'transparent', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1 1l9 9M10 1L1 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>

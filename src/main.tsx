@@ -23,6 +23,15 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string
 const isNative = Capacitor.isNativePlatform()
 const APP_URL = isNative ? '/' : '/app'
 
+// WKWebView pinta encima del teclado su barra de «campo anterior / siguiente /
+// hecho». Es una ayuda de navegador dentro de formularios web y delata que
+// debajo hay un WebView, así que en nativo se oculta.
+if (isNative) {
+  void import('@capacitor/keyboard')
+    .then(({ Keyboard }) => Keyboard.setAccessoryBarVisible({ isVisible: false }))
+    .catch(err => console.error('[Osmin] no se pudo ocultar el accessory bar:', err))
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ClerkProvider
