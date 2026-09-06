@@ -28,6 +28,20 @@ const describe = (err: unknown): string => {
   return String((err as Error)?.message ?? err)
 }
 
+/**
+ * Lee las reclamaciones del identity token sin verificar la firma: aquí solo
+ * interesa mirar a quién va dirigido (`aud`), que es lo que Clerk contrasta
+ * con el bundle registrado. Verificarlo es cosa suya, no nuestra.
+ */
+const readClaims = (jwt: string): Record<string, unknown> => {
+  try {
+    const body = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(body.padEnd(Math.ceil(body.length / 4) * 4, '=')))
+  } catch {
+    return { error: 'no se ha podido leer el token' }
+  }
+}
+
 const isNotRegistered = (err: unknown) => {
   const errors = (err as { errors?: { code?: string }[] })?.errors
   return Array.isArray(errors) && errors.some(e => e.code && NOT_REGISTERED.has(e.code))
@@ -38,6 +52,7 @@ export default function AppleSignInButton() {
   const { signUp, isLoaded: signUpReady } = useSignUp()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [detail, setDetail] = useState<string | null>(null)
 
   const ready = signInReady && signUpReady && !busy
 
@@ -45,9 +60,14 @@ export default function AppleSignInButton() {
     if (!ready || !signIn || !signUp || !setActive) return
     setBusy(true)
     setError(null)
+    setDetail(null)
+
+    // Fuera del try para que el catch pueda contarlas.
+    let claims: Record<string, unknown> = {}
 
     try {
       const { identityToken: token } = await AppleSignIn.authorize()
+      claims = readClaims(token)
 
       // Clerk no expone un «entra o regístrate» para esta estrategia, así que
       // se prueba a entrar y solo si la cuenta no existe se crea.
@@ -68,6 +88,8 @@ export default function AppleSignInButton() {
       if (!isCanceled(err)) {
         console.error('[Osmin] falló el acceso con Apple:', err)
         setError(describe(err))
+        const clerk = (err as { errors?: unknown[]; status?: number })
+        setDetail(JSON.stringify({ aud: claims.aud, iss: claims.iss, email: claims.email, status: clerk?.status, errors: clerk?.errors }, null, 1))
       }
     } finally {
       setBusy(false)
@@ -110,6 +132,27 @@ export default function AppleSignInButton() {
         <p style={{ margin: '10px 0 0', fontSize: 13, color: '#C0392B', textAlign: 'center' }}>
           {error}
         </p>
+      )}
+
+      {detail && (
+        <pre
+          style={{
+            margin: '8px 0 0',
+            padding: 8,
+            maxHeight: 220,
+            overflow: 'auto',
+            fontSize: 9,
+            lineHeight: 1.35,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
+            background: 'var(--surface-alt)',
+            border: '1px solid var(--line)',
+            borderRadius: 6,
+            color: 'var(--text-muted)',
+          }}
+        >
+          {detail}
+        </pre>
       )}
     </div>
   )
