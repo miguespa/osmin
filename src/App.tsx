@@ -136,7 +136,10 @@ function Sidebar({ months, activeIdx, setActiveIdx, addMonth, deleteMonth, viewM
 
   return (
     <aside style={{ width: 224, flexShrink: 0, background: 'var(--sidebar)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column', padding: '0 10px 14px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '14px 10px 16px' }}>
+      {/* En el navegador el área segura vale 0 y esto es el margen de siempre. En
+          el iPad el WebView llega hasta el borde de arriba y sin esto el logo se
+          pinta debajo del reloj del sistema. */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 10px 16px' }}>
         <Logo height={36} />
       </div>
 
@@ -257,10 +260,13 @@ function MonthHeader({ month, layout, setLayout, onPrev, onNext, viewMode, setVi
     )
   }
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '24px 28px 18px', borderBottom: '1px solid var(--line)' }}>
+    /* El `wrap` es para el iPad: en el escritorio todo cabe en una línea, pero a
+       la anchura del iPad en vertical la fila se desbordaba por la derecha y el
+       selector de Tabla/Bitácora quedaba cortado fuera de la pantalla. */
+    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, padding: 'calc(env(safe-area-inset-top, 0px) + 24px) 28px 18px', borderBottom: '1px solid var(--line)' }}>
       <div>
         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Mes activo</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 14 }}>
           <button onClick={onPrev} className="month-nav">‹</button>
           <h1 style={{ margin: 0, fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: 44, lineHeight: 1, color: 'var(--text)', letterSpacing: '-0.01em' }}>
             {MONTHS_ES[month.month]}
