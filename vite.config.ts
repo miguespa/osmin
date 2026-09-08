@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 /** Páginas estáticas servidas en su propia ruta, además de la landing. */
-const STATIC_PAGES = ['privacidad', 'terminos']
+const STATIC_PAGES = ['privacidad', 'terminos', 'soporte']
 
 export default defineConfig({
   plugins: [
