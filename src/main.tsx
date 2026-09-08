@@ -1,6 +1,6 @@
-import { StrictMode } from 'react'
+import { StrictMode, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ClerkProvider, SignedIn, SignedOut, SignIn } from '@clerk/clerk-react'
+import { ClerkProvider, SignedIn, SignedOut, SignIn, SignUp } from '@clerk/clerk-react'
 import { esES } from '@clerk/localizations'
 import { Capacitor } from '@capacitor/core'
 import './index.css'
@@ -102,9 +102,61 @@ const SIGN_IN_APPEARANCE = {
   elements: {
     // La tarjeta ya va dentro de un bloque que trae su propio encabezado.
     header: { display: 'none' },
+    // El enlace de Clerk entre acceso y registro apunta al portal alojado, o sea
+    // que en el binario nativo se salía a Safari: la cuenta se creaba allí, la
+    // sesión se quedaba en el navegador y al volver seguías sin haber entrado.
+    // Se oculta y debajo se pinta uno propio que solo cambia de componente.
+    footerAction: { display: 'none' },
     // En nativo se van los sociales enteros, y con ellos su separador.
     ...(isNative ? { socialButtons: { display: 'none' }, dividerRow: { display: 'none' } } : {}),
   },
+}
+
+/**
+ * Acceso y registro, los dos dentro de la app.
+ *
+ * `routing="virtual"` mantiene cada formulario en memoria, sin tocar la URL ni
+ * navegar a ningún sitio, así que el alta entera —correo, contraseña y código de
+ * verificación— ocurre sin salir del WebView. Al terminar, Clerk activa la
+ * sesión y `<SignedIn>` se encarga del resto: no hace falta redirección.
+ */
+function Acceso() {
+  const [modo, setModo] = useState<'entrar' | 'registro'>('entrar')
+
+  return (
+    <>
+      {modo === 'entrar'
+        ? <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
+        : <SignUp routing="virtual" appearance={SIGN_IN_APPEARANCE} />}
+
+      <p
+        style={{
+          margin: '18px 0 0',
+          textAlign: 'center',
+          fontFamily: "'Inter', -apple-system, sans-serif",
+          fontSize: 13,
+          color: DARK.textMuted,
+        }}
+      >
+        {modo === 'entrar' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+        <button
+          type="button"
+          onClick={() => setModo(m => (m === 'entrar' ? 'registro' : 'entrar'))}
+          style={{
+            border: 'none',
+            background: 'none',
+            padding: 0,
+            font: 'inherit',
+            cursor: 'pointer',
+            color: token('--accent') || '#C97A2A',
+            fontWeight: 600,
+          }}
+        >
+          {modo === 'entrar' ? 'Crear una' : 'Entrar'}
+        </button>
+      </p>
+    </>
+  )
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -155,7 +207,7 @@ createRoot(document.getElementById('root')!).render(
             </div>
 
             <div style={{ marginTop: 26 }}>
-              <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
+              <Acceso />
             </div>
           </div>
         </div>
