@@ -16,8 +16,29 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 
 const KEY = 'osmin_reminder'
 
-/** Fijo: al reprogramar hay que pisar el aviso anterior, no acumularlos. */
-const ID = 1
+/**
+ * Un aviso por día de la semana, en vez de uno solo repetido.
+ *
+ * Con un único aviso repetido, iOS enseña el mismo texto los 365 días y en una
+ * semana ya no se lee. Programando siete, cada uno repetido semanalmente, el
+ * mensaje cambia a diario y además distingue entre semana y fin de semana, igual
+ * que hacen los marcadores de posición del diario.
+ *
+ * Los identificadores son fijos —del 1 al 7, en el orden de `Weekday` de
+ * Capacitor, donde el 1 es domingo— porque al reprogramar hay que pisar los
+ * avisos anteriores en lugar de acumularlos.
+ */
+const MENSAJES: { weekday: number; title: string; body: string }[] = [
+  { weekday: 1, title: '¿Qué tal el domingo? ☀️',            body: 'Cierra el finde: marca tus hábitos y deja la nota del día.' },
+  { weekday: 2, title: '¿Cómo ha ido el lunes? ☕',           body: 'Un minuto para marcar los hábitos y contar cómo ha ido.' },
+  { weekday: 3, title: 'Cuéntame, ¿cómo ha ido hoy? 👀',      body: 'Marca tus hábitos y deja tu nota antes de que se te pase.' },
+  { weekday: 4, title: '¿Qué ha sido lo mejor del día? 📝',   body: 'Mitad de semana. En un minuto lo dejas cerrado.' },
+  { weekday: 5, title: '¿Qué te llevas de hoy? 🌿',           body: 'Marca los hábitos y escribe tu nota del día.' },
+  { weekday: 6, title: '¿Qué tal ha salido el viernes? ✨',   body: 'Cierra la semana con tu día al día.' },
+  { weekday: 7, title: '¿Día tranquilo o movidito? 🙂',       body: 'Marca lo que has hecho y deja tu nota del sábado.' },
+]
+
+const IDS = MENSAJES.map(m => m.weekday)
 
 export interface Reminder {
   enabled: boolean
@@ -54,7 +75,7 @@ const writeReminder = (r: Reminder) => {
 export async function applyReminder(next: Reminder): Promise<Reminder> {
   if (!supportsReminders()) return next
 
-  await LocalNotifications.cancel({ notifications: [{ id: ID }] })
+  await LocalNotifications.cancel({ notifications: IDS.map(id => ({ id })) })
 
   if (!next.enabled) {
     writeReminder(next)
@@ -71,13 +92,13 @@ export async function applyReminder(next: Reminder): Promise<Reminder> {
 
   const [hour, minute] = next.time.split(':').map(Number)
   await LocalNotifications.schedule({
-    notifications: [{
-      id: ID,
-      title: 'Tu día en Osmin',
-      body: 'Un minuto para marcar los hábitos y escribir cómo ha ido.',
-      // Sin `repeats` esto sonaría una sola vez; con él, cada día a esa hora.
-      schedule: { on: { hour, minute }, repeats: true, allowWhileIdle: true },
-    }],
+    notifications: MENSAJES.map(({ weekday, title, body }) => ({
+      id: weekday,
+      title,
+      body,
+      // Sin `repeats` esto sonaría una sola vez; con él, cada semana ese día.
+      schedule: { on: { weekday, hour, minute }, repeats: true, allowWhileIdle: true },
+    })),
   })
 
   writeReminder(next)
@@ -95,7 +116,9 @@ export async function restoreReminder(): Promise<void> {
   if (!saved.enabled) return
   try {
     const { notifications } = await LocalNotifications.getPending()
-    if (notifications.some(n => n.id === ID)) return
+    // Se reprograman los siete si falta alguno: una serie a medias avisaría unos
+    // días sí y otros no, que es peor que no tener recordatorio.
+    if (IDS.every(id => notifications.some(n => n.id === id))) return
     await applyReminder(saved)
   } catch (err) {
     console.error('[Osmin] no se pudo restaurar el recordatorio:', err)
