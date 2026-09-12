@@ -341,6 +341,13 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
     ? new Date(user.createdAt).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
     : '—'
 
+  // Borrar la cuenta aquí no le retira a Osmin el permiso que Apple guarda: eso
+  // solo se puede revocar desde el sistema, o con un backend que llame al
+  // endpoint de revocación de Apple, y Osmin no tiene ninguno. Apple acepta esta
+  // salida a cambio de explicárselo al usuario, así que el aviso se enseña justo
+  // antes de confirmar, que es cuando todavía está mirando.
+  const entroConApple = user?.externalAccounts?.some(c => c.provider?.includes('apple')) ?? false
+
   useEffect(() => {
     if (!document.getElementById('osmin-ac-styles')) {
       const s = document.createElement('style')
@@ -475,6 +482,13 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
             ) : (
               <div>
                 <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Esta acción eliminará todos tus datos. ¿Continuar?</div>
+                {entroConApple && (
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, lineHeight: 1.5, color: 'var(--text-muted)', background: 'var(--surface-alt)', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+                    Entraste con Apple. Esto borra tu cuenta de Osmin, pero el permiso que diste
+                    con tu Apple ID lo guarda Apple y solo puedes retirarlo tú, en{' '}
+                    <strong style={{ color: 'var(--text)', fontWeight: 600 }}>Ajustes → tu nombre → Inicio de sesión con Apple → Osmin → Dejar de usar mi cuenta de Apple</strong>.
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setConfirmDelete(false)} disabled={deleting} style={{ flex: 1, padding: '8px', borderRadius: 7, border: '1px solid var(--line)', background: 'transparent', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--text-muted)' }}>Cancelar</button>
                   <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, padding: '8px', borderRadius: 7, border: 'none', background: '#E05252', cursor: deleting ? 'wait' : 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#fff' }}>
