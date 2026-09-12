@@ -15,9 +15,12 @@ import AuthenticationServices
  capacitor-swift-pm en la 7.x y este proyecto va por la 8.5.1: SPM no puede
  resolver las dos a la vez.
 
- No se manda `nonce` a propósito. Apple lo incrusta en el token y quien lo
- valida tiene que conocerlo; Clerk recibe el token sin haber participado en la
- petición, así que un nonce que no puede comprobar solo rompería la validación.
+ El `nonce` es OBLIGATORIO aunque Clerk no lo haya generado. Aquí se creía lo
+ contrario —que un nonce ajeno rompería la validación— y por eso se omitía; era
+ el motivo del `403 authorization_invalid` al canjear el token. Clerk no lo
+ compara con nada: lo exige como clave anti-replay, para que cada token valga
+ una sola vez. Lo mismo hacen su hook oficial de Expo, su SDK de iOS y el resto
+ de integraciones que funcionan. Si vuelve a quitarse, el canje deja de valer.
  */
 @objc(AppleSignInPlugin)
 public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -38,6 +41,7 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             let request = ASAuthorizationAppleIDProvider().createRequest()
             request.requestedScopes = [.fullName, .email]
+            request.nonce = UUID().uuidString
 
             let controller = ASAuthorizationController(authorizationRequests: [request])
             controller.delegate = self

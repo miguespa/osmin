@@ -5,6 +5,7 @@ import { esES } from '@clerk/localizations'
 import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App'
+import AppleSignInButton from './components/AppleSignInButton'
 
 import logoDark from '/logo-dark.png'
 
@@ -76,16 +77,14 @@ const DARK = {
 }
 
 /**
- * En nativo se ocultan los botones sociales enteros, y con ellos su separador.
- * Todos hacen OAuth por redirección, y esa navegación se le escapa al WebView:
- * iOS la abre en Safari y la sesión se queda allí. Queda el email con código,
- * que funciona entero dentro de la app.
+ * En nativo se ocultan los botones sociales que pinta Clerk, y con ellos su
+ * separador. Todos hacen OAuth por redirección, y esa navegación se le escapa
+ * al WebView: iOS la abre en Safari y la sesión se queda allí.
  *
- * Apple tuvo aquí un botón propio contra `oauth_token_apple`, que Clerk solo
- * acepta desde sus SDK nativos y rechaza con 403 desde el SDK web por mucho que
- * la app esté registrada. El componente sigue en el repo, sin usar, junto al
- * plugin de Swift y el entitlement, para cuando se retome por redirección.
- * En la web sí funciona, y ahí se muestra con normalidad.
+ * Apple no se pierde por eso: lo pinta AppleSignInButton, que pide la
+ * autorización al sistema y canjea el token sin navegar a ningún sitio. Lo que
+ * sí queda fuera en nativo es Google, que necesita su propio SDK nativo.
+ * En la web se muestran los dos con normalidad.
  */
 const SIGN_IN_APPEARANCE = {
   variables: {
@@ -125,6 +124,29 @@ function Acceso() {
 
   return (
     <>
+      {/* Va arriba, donde Clerk pone los suyos en la web, para que las dos
+          plataformas ofrezcan el mismo orden. */}
+      {isNative && (
+        <>
+          <AppleSignInButton />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              margin: '18px 0',
+              fontFamily: "'Inter', -apple-system, sans-serif",
+              fontSize: 12,
+              color: DARK.textMuted,
+            }}
+          >
+            <span style={{ flex: 1, height: 1, background: DARK.line }} />
+            o
+            <span style={{ flex: 1, height: 1, background: DARK.line }} />
+          </div>
+        </>
+      )}
+
       {modo === 'entrar'
         ? <SignIn routing="virtual" appearance={SIGN_IN_APPEARANCE} />
         : <SignUp routing="virtual" appearance={SIGN_IN_APPEARANCE} />}

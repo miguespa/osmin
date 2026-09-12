@@ -3,42 +3,16 @@ import { useSignIn, useSignUp } from '@clerk/clerk-react'
 import { AppleSignIn, isCanceled } from '../lib/appleSignIn'
 
 /**
- * EN RESERVA: hoy no se pinta en ningún sitio. Ver main.tsx.
+ * «Continuar con Apple» sin salir de la app.
  *
- * Pide la autorización al sistema y canjea el identity token con Clerk sin
- * salir de la app. La parte de Apple funciona —el token sale con el `aud`
- * correcto—, pero Clerk contesta 403 authorization_invalid: `oauth_token_apple`
- * solo la aceptan sus SDK nativos, que hablan con la Native API autenticando el
- * cliente de otra forma, y desde el SDK web no hay manera de presentarse así.
+ * La hoja la pinta el sistema (ver AppleSignInPlugin.swift) y a la parte web
+ * solo le llega el `identityToken`, que Clerk canjea con `oauth_token_apple`.
+ * Nada de esto navega fuera del WebView, que es lo que rompía el OAuth por
+ * redirección: iOS se lleva esa navegación a Safari y la sesión se queda allí.
  *
- * Se conserva junto a AppleSignInPlugin.swift y al entitlement porque el puente
- * nativo sí quedó resuelto; lo que habría que cambiar es el canje, pasando al
- * flujo por redirección contra es.osmin.app://callback, que Clerk ya tiene en
- * la lista blanca de redirecciones SSO para flujos nativos.
+ * El 403 que daba antes no era que Clerk rechazase la estrategia desde el SDK
+ * web: era que el token no llevaba `nonce`. Está arreglado en el plugin.
  */
-
-/** Clerk responde esto cuando el Apple ID todavía no tiene cuenta en Osmin. */
-const NOT_REGISTERED = new Set(['external_account_not_found', 'form_identifier_not_found'])
-
-/**
- * Para saber si ha fallado Apple o Clerk. Sin esto el fallo es siempre el mismo
- * mensaje y no hay forma de distinguir «el sistema no ha dado token» de
- * «Clerk no reconoce esta app», que se arreglan en sitios muy distintos.
- */
-const describe = (err: unknown): string => {
-  const clerk = (err as { errors?: { code?: string; message?: string }[] })?.errors
-  if (Array.isArray(clerk) && clerk.length) {
-    return `clerk/${clerk[0].code ?? '?'}: ${clerk[0].message ?? ''}`
-  }
-  const native = err as { code?: string; message?: string }
-  if (native?.code) return `apple/${native.code}: ${native.message ?? ''}`
-  return String((err as Error)?.message ?? err)
-}
-
-const isNotRegistered = (err: unknown) => {
-  const errors = (err as { errors?: { code?: string }[] })?.errors
-  return Array.isArray(errors) && errors.some(e => e.code && NOT_REGISTERED.has(e.code))
-}
 
 export default function AppleSignInButton() {
   const { signIn, setActive, isLoaded: signInReady } = useSignIn()
@@ -54,23 +28,28 @@ export default function AppleSignInButton() {
     setError(null)
 
     try {
-      const { identityToken: token } = await AppleSignIn.authorize()
+      const { identityToken: token, givenName, familyName } = await AppleSignIn.authorize()
 
-      // Clerk no expone un «entra o regístrate» para esta estrategia, así que
-      // se prueba a entrar y solo si la cuenta no existe se crea.
-      let sessionId: string | null = null
-      try {
-        const attempt = await signIn.create({ strategy: 'oauth_token_apple', token })
-        if (attempt.status !== 'complete') throw new Error(`estado ${attempt.status}`)
-        sessionId = attempt.createdSessionId
-      } catch (err) {
-        if (!isNotRegistered(err)) throw err
-        const attempt = await signUp.create({ strategy: 'oauth_token_apple', token })
-        if (attempt.status !== 'complete') throw new Error(`estado ${attempt.status}`)
-        sessionId = attempt.createdSessionId
-      }
+      // Se intenta SIEMPRE el alta primero, aunque la cuenta ya exista. Clerk
+      // contesta entonces `transferable`, y la transferencia reutiliza esa misma
+      // verificación para iniciar sesión. Lo que no se puede es reintentar con
+      // el token: Apple solo lo acepta una vez y el segundo canje falla.
+      const alta = await signUp.create({
+        strategy: 'oauth_token_apple',
+        token,
+        // Apple solo manda el nombre la primera vez que se autoriza la app.
+        firstName: givenName || undefined,
+        lastName: familyName || undefined,
+      })
 
-      await setActive({ session: sessionId })
+      const sesion =
+        alta.verifications.externalAccount.status === 'transferable'
+          ? (await signIn.create({ transfer: true })).createdSessionId
+          : alta.createdSessionId
+
+      if (!sesion) throw new Error(`Clerk no creó sesión (alta: ${alta.status})`)
+
+      await setActive({ session: sesion })
     } catch (err) {
       if (!isCanceled(err)) {
         console.error('[Osmin] falló el acceso con Apple:', err)
@@ -120,4 +99,19 @@ export default function AppleSignInButton() {
       )}
     </div>
   )
+}
+
+/**
+ * Para saber si ha fallado Apple o Clerk. Sin esto el fallo es siempre el mismo
+ * mensaje y no hay forma de distinguir «el sistema no ha dado token» de
+ * «Clerk no reconoce esta app», que se arreglan en sitios muy distintos.
+ */
+const describe = (err: unknown): string => {
+  const clerk = (err as { errors?: { code?: string; message?: string }[] })?.errors
+  if (Array.isArray(clerk) && clerk.length) {
+    return `clerk/${clerk[0].code ?? '?'}: ${clerk[0].message ?? ''}`
+  }
+  const native = err as { code?: string; message?: string }
+  if (native?.code) return `apple/${native.code}: ${native.message ?? ''}`
+  return String((err as Error)?.message ?? err)
 }
