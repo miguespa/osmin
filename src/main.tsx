@@ -99,6 +99,14 @@ const SIGN_IN_APPEARANCE = {
     fontFamily: "'Inter', -apple-system, sans-serif",
   },
   elements: {
+    // Clerk calcula la anchura de su tarjeta contra la VENTANA, no contra su
+    // contenedor: en un iPhone de 430 pt le ponía `width: 390px` fijos dentro de
+    // un bloque de 360, y la tarjeta se salía 30 pt por la derecha. Como nuestros
+    // botones de Apple y Google sí respetan el contenedor, el desajuste se veía
+    // a simple vista. Con esto la tarjeta obedece al padre en cualquier pantalla.
+    rootBox: { width: '100%' },
+    cardBox: { width: '100%', maxWidth: '100%' },
+    card: { width: '100%', maxWidth: '100%' },
     // La tarjeta ya va dentro de un bloque que trae su propio encabezado.
     header: { display: 'none' },
     // El enlace de Clerk entre acceso y registro apunta al portal alojado, o sea
