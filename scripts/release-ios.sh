@@ -48,13 +48,30 @@ IDENTIDAD="$(security find-identity -v -p codesigning \
 # permiso; si nadie lo contesta, la firma devuelve `errSecInternalComponent` y
 # el archivado se cae DESPUÉS de haber compilado entero. Mejor tropezar aquí,
 # en dos segundos, y con un mensaje que diga qué hacer.
+# CON LÍMITE DE TIEMPO, y esto es lo importante: cuando a codesign le falta el
+# permiso del llavero NO devuelve error, abre un diálogo del sistema y se queda
+# esperando indefinidamente. Sin el límite, esta comprobación —puesta para
+# fallar rápido— colgaba el release una hora sin imprimir una sola línea.
 PRUEBA="$(mktemp -d)"
 cp /bin/echo "$PRUEBA/probe"
-if ! codesign --force --sign "$IDENTIDAD" "$PRUEBA/probe" >/dev/null 2>&1; then
+codesign --force --sign "$IDENTIDAD" "$PRUEBA/probe" >/dev/null 2>&1 &
+FIRMA=$!
+for _ in $(seq 1 10); do
+  kill -0 "$FIRMA" 2>/dev/null || break
+  sleep 1
+done
+if kill -0 "$FIRMA" 2>/dev/null; then
+  kill -9 "$FIRMA" 2>/dev/null
   rm -rf "$PRUEBA"
-  echo "codesign no puede usar la clave privada del llavero."
-  echo "Si ha salido un diálogo del sistema pidiendo permiso, acéptalo con"
-  echo "«Permitir siempre» y vuelve a lanzar esto."
+  echo "codesign se ha quedado esperando permiso del llavero."
+  echo "Mira la pantalla del Mac: hay un diálogo pidiendo acceso a la clave de"
+  echo "firma. Acéptalo con «Permitir siempre» y vuelve a lanzar esto."
+  exit 1
+fi
+if ! wait "$FIRMA"; then
+  rm -rf "$PRUEBA"
+  echo "codesign no puede usar la clave privada del llavero. Revisa que el"
+  echo "certificado «Apple Distribution» sigue en el llavero de inicio de sesión."
   exit 1
 fi
 rm -rf "$PRUEBA"
