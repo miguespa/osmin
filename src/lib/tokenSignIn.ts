@@ -4,15 +4,19 @@ import { useSignIn, useSignUp } from '@clerk/clerk-react'
  * El canje de un identity token nativo por una sesión de Clerk, que Apple y
  * Google hacen exactamente igual.
  *
- * Vive aparte porque tiene dos trampas que no se ven leyendo el código y que
- * conviene arreglar en un solo sitio:
+ * El orden importa y no es el intuitivo:
  *
- * 1. **Siempre se intenta el alta primero**, aunque la cuenta ya exista. Clerk
- *    responde entonces `transferable`, y la transferencia reutiliza esa misma
- *    verificación para iniciar sesión.
+ * 1. **Se intenta ENTRAR primero.** Si la cuenta existe, entra y ya está. Si no
+ *    existe, Clerk no da error: devuelve la verificación en estado
+ *    `transferable`, y con eso el alta se completa sin volver a canjear nada.
  * 2. **El token no se puede reutilizar.** Ni Apple ni Google aceptan un segundo
- *    canje del mismo identity token: llevan anti-replay. Por eso no vale el
- *    patrón intuitivo de «pruebo a entrar y, si no existe, registro».
+ *    canje del mismo identity token: llevan anti-replay. De ahí que exista la
+ *    transferencia, en vez de «pruebo a entrar y, si no existe, registro».
+ *
+ * Se probó al revés —alta primero y transferir si ya existía— y está mal: con
+ * una cuenta que ya existe, `signUp.create` no responde `transferable`, lanza
+ * `external_account_exists`. Funcionaba al registrarse y dejaba fuera a
+ * cualquiera que volviera a entrar. Pasó en el build 8, con Google y con Apple.
  */
 
 // Los tipos salen de los propios hooks para no depender de la ruta interna
@@ -37,14 +41,20 @@ interface Opciones {
 export async function canjearToken({
   signIn, signUp, strategy, token, firstName, lastName,
 }: Opciones): Promise<string> {
-  const alta = await signUp.create({ strategy, token, firstName, lastName })
+  const entrada = await signIn.create({ strategy, token })
 
+  // Cuenta nueva: no es un fallo, es que esta verificación puede convertirse en
+  // un alta. El token ya está gastado, así que `transfer` es la única vía.
   const sesion =
-    alta.verifications.externalAccount.status === 'transferable'
-      ? (await signIn.create({ transfer: true })).createdSessionId
-      : alta.createdSessionId
+    entrada.firstFactorVerification.status === 'transferable'
+      ? (await signUp.create({ transfer: true, firstName, lastName })).createdSessionId
+      : entrada.createdSessionId
 
-  if (!sesion) throw new Error(`Clerk no creó sesión (alta: ${alta.status})`)
+  if (!sesion) {
+    throw new Error(
+      `Clerk no creó sesión (entrada: ${entrada.status}, verificación: ${entrada.firstFactorVerification.status})`,
+    )
+  }
   return sesion
 }
 
