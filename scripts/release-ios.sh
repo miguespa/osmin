@@ -67,16 +67,17 @@ paso "Sincronizando el proyecto iOS"
 npx cap sync ios
 
 paso "Archivando con firma de distribución"
-# Firma manual a propósito: la automática resuelve siempre a «Apple Development»
-# y falla, porque este equipo no tiene dispositivos registrados con los que
+# La firma manual vive en el target App, configuración Release, dentro del
+# project.pbxproj. NO se pasa por línea de comandos: xcodebuild aplicaría esos
+# ajustes a TODOS los targets, y los paquetes SPM de terceros —los del SDK de
+# Google, por ejemplo— fallan con «does not support provisioning profiles».
+#
+# Y manual, no automática: la automática resuelve siempre a «Apple Development»
+# al archivar, y este equipo no tiene dispositivos registrados con los que
 # generar un perfil de desarrollo.
 xcodebuild -project "$REPO/ios/App/App.xcodeproj" -scheme App \
   -configuration Release -destination 'generic/platform=iOS' \
   -archivePath "$WORK/Osmin.xcarchive" \
-  CODE_SIGN_STYLE=Manual \
-  CODE_SIGN_IDENTITY="Apple Distribution" \
-  PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-  DEVELOPMENT_TEAM="$TEAM_ID" \
   archive
 
 APP="$WORK/Osmin.xcarchive/Products/Applications/App.app"
