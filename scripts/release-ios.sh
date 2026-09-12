@@ -39,8 +39,25 @@ trap 'rm -rf "$WORK"' EXIT
 paso() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 
 [[ -f "$API_KEY_PATH" ]] || { echo "Falta la clave de API en $API_KEY_PATH"; exit 1; }
-security find-identity -v -p codesigning | grep -q "Apple Distribution: .*($TEAM_ID)" \
-  || { echo "No hay certificado «Apple Distribution» en el llavero"; exit 1; }
+IDENTIDAD="$(security find-identity -v -p codesigning \
+  | grep "Apple Distribution: .*($TEAM_ID)" | head -1 | awk '{print $2}')"
+[[ -n "$IDENTIDAD" ]] || { echo "No hay certificado «Apple Distribution» en el llavero"; exit 1; }
+
+# Firmar algo de mentira antes de compilar. La primera vez que codesign usa una
+# clave del llavero en cada sesión, macOS puede sacar un diálogo pidiendo
+# permiso; si nadie lo contesta, la firma devuelve `errSecInternalComponent` y
+# el archivado se cae DESPUÉS de haber compilado entero. Mejor tropezar aquí,
+# en dos segundos, y con un mensaje que diga qué hacer.
+PRUEBA="$(mktemp -d)"
+cp /bin/echo "$PRUEBA/probe"
+if ! codesign --force --sign "$IDENTIDAD" "$PRUEBA/probe" >/dev/null 2>&1; then
+  rm -rf "$PRUEBA"
+  echo "codesign no puede usar la clave privada del llavero."
+  echo "Si ha salido un diálogo del sistema pidiendo permiso, acéptalo con"
+  echo "«Permitir siempre» y vuelve a lanzar esto."
+  exit 1
+fi
+rm -rf "$PRUEBA"
 
 paso "Bundle web (vite lee .env.production.local por sí solo)"
 cd "$REPO"
