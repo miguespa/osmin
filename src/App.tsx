@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { useAuth, useUser, useClerk } from '@clerk/clerk-react'
+import { useAuth, useUser, useClerk, useReverification } from '@clerk/clerk-react'
 import { buildBlankMonth, MONTHS_ES } from './data'
 import { TableLayout } from './components/TableLayout'
 import { JournalLayout } from './components/JournalLayout'
@@ -382,6 +382,7 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<{ fase: 'datos' | 'cuenta'; detalle: string } | null>(null)
   const [toast, setToast] = useState('')
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
@@ -397,9 +398,23 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
     } catch { showToast('Error al exportar') }
   }
 
+  // Si el borrado sale bien, `user.delete()` destruye la sesión y este panel se
+  // desmonta solo: no hace falta apagar `deleting`. Si falla, hay que enseñarlo
+  // — durante meses este catch no existía y un borrado a medias, con los datos
+  // ya destruidos y la cuenta viva, se veía exactamente igual que uno correcto.
   const handleDelete = async () => {
     setDeleting(true)
-    await onDeleteAccount()
+    setDeleteError(null)
+    try {
+      await onDeleteAccount()
+    } catch (err) {
+      const clerk = (err as { errors?: { code?: string; message?: string }[] })?.errors
+      const detalle = Array.isArray(clerk) && clerk.length
+        ? `${clerk[0].code ?? 'error'}: ${clerk[0].message ?? ''}`
+        : String((err as Error)?.message ?? err)
+      setDeleteError({ fase: (err as { fase?: 'datos' | 'cuenta' }).fase ?? 'datos', detalle })
+      setDeleting(false)
+    }
   }
 
   const FEATURES = ['Seguimiento de hábitos', 'Bitácora diaria', 'Estadísticas del mes', 'Vista de highlights', 'Exportación de datos', 'Acceso anticipado']
@@ -495,6 +510,14 @@ function AccountPanel({ months, onClose, onLogout, onDeleteAccount, isMobile = f
                     {deleting ? 'Eliminando…' : 'Sí, eliminar'}
                   </button>
                 </div>
+                {deleteError && (
+                  <div style={{ marginTop: 10, fontFamily: 'Inter, sans-serif', fontSize: 11.5, lineHeight: 1.5, color: '#E05252' }}>
+                    {deleteError.fase === 'datos'
+                      ? 'No se ha podido eliminar la cuenta. No hemos borrado nada: tus datos siguen como estaban y puedes volver a intentarlo.'
+                      : 'Tus datos se han eliminado, pero la cuenta de acceso no. Vuelve a intentarlo; si sigue fallando, escríbenos a hola@osmin.es y la eliminamos nosotros.'}
+                    <div style={{ marginTop: 6, fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: 'var(--text-muted)', wordBreak: 'break-word' }}>{deleteError.detalle}</div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -759,6 +782,21 @@ export default function App() {
   const monthsRef = useRef<Month[]>(months)
   monthsRef.current = months
 
+  // La marca del onboarding cuelga del usuario, no del dispositivo.
+  //
+  // Antes era una clave suelta, `osmin_onboarding_v1`, y como nada la borra
+  // nunca —ni siquiera al eliminar la cuenta—, bastaba con que alguien
+  // completara el onboarding una vez en un móvil para que ninguna cuenta
+  // posterior volviera a verlo ahí. Le pasó al usuario el 2026-09-12: creó una
+  // cuenta con Apple en un iPhone donde ya se había completado semanas antes, y
+  // entró directo a un mes vacío sin explicación ninguna.
+  //
+  // Con el id delante, un móvil compartido o una segunda cuenta funcionan bien.
+  // Y si iOS purga el almacenamiento del WebView, cosa que hace bajo presión de
+  // espacio, lo peor que ocurre es que alguien lo vea dos veces: mucho mejor que
+  // no vérselo quien lo necesita.
+  const claveOnboarding = userId ? `osmin_onboarding_v1:${userId}` : null
+
   const loadData = useCallback(async () => {
     if (!userId) return
     setStatus('loading')
@@ -786,7 +824,7 @@ export default function App() {
         setMonths([blank])
         setActiveIdx(0)
         pendingCreate.current = { year: blank.year, month: blank.month }
-        if (!localStorage.getItem('osmin_onboarding_v1')) setShowOnboarding(true)
+        if (claveOnboarding && !localStorage.getItem(claveOnboarding)) setShowOnboarding(true)
       }
       setStatus('ready')
     } catch (err) {
@@ -960,17 +998,40 @@ export default function App() {
 
   // La directriz 5.1.1(v) de Apple exige poder borrar la *cuenta*, no solo sus
   // datos. Primero el contenido en Supabase, que necesita un JWT todavía válido,
-  // y después la cuenta de Clerk. `user.delete()` destruye ya la sesión, así que
-  // solo hace falta cerrar sesión a mano si ese borrado falla.
-  const handleDeleteAccount = async () => {
-    if (userId) await deleteAllUserData(supabase, userId).catch(console.error)
+  // y después la cuenta de Clerk, cuyo borrado ya destruye la sesión.
+  //
+  // Va entero dentro de `useReverification` porque `user.delete()` es una acción
+  // sensible: si Clerk pide reautenticar, el hook enseña su pantalla y REINTENTA
+  // la función completa. Reintentar es inofensivo porque el borrado en Supabase
+  // son DELETE por user_id, idempotentes.
+  //
+  // El 2026-09-12 esto se rompió a lo grande: el borrado de una cuenta de Google
+  // se llevó todos los datos y dejó la cuenta viva en Clerk, y el usuario no vio
+  // nada porque el fallo se capturaba con un console.error y un cierre de sesión.
+  // Parecía que había funcionado. Ahora el error sube y se enseña.
+  // Se marca en qué paso falla porque el usuario merece saberlo: no es lo mismo
+  // «no hemos tocado nada» que «tus datos ya no están pero la cuenta sigue». El
+  // error se reetiqueta sin sustituirlo, para que useReverification siga
+  // reconociendo el suyo y pueda pedir la reautenticación.
+  const borrarCuentaYDatos = useReverification(async () => {
+    if (userId) {
+      try {
+        await deleteAllUserData(supabase, userId)
+      } catch (err) {
+        throw Object.assign(err as Error, { fase: 'datos' as const })
+      }
+    }
     try {
       await user?.delete()
     } catch (err) {
-      console.error('[Osmin] user.delete() failed:', err)
-      await signOut()
+      throw Object.assign(err as Error, { fase: 'cuenta' as const })
     }
-  }
+  })
+
+  // Se deja propagar a propósito: el panel lo enseña. Nada de cerrar sesión al
+  // fallar, que es lo que disfrazaba el problema — si no se ha podido borrar,
+  // conviene seguir dentro para reintentar.
+  const handleDeleteAccount = () => borrarCuentaYDatos()
 
   // Antes que ninguna otra pantalla: bloqueada no se enseña nada, ni siquiera
   // el «Cargando…», que ya deja ver que hay una cuenta detrás.
@@ -1101,7 +1162,7 @@ export default function App() {
       {showOnboarding && (
         <OnboardingFlow onComplete={() => {
           setShowOnboarding(false)
-          localStorage.setItem('osmin_onboarding_v1', '1')
+          if (claveOnboarding) localStorage.setItem(claveOnboarding, '1')
         }} />
       )}
     </div>
