@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App'
 import AppleSignInButton from './components/AppleSignInButton'
+import GoogleSignInButton from './components/GoogleSignInButton'
 
 import logoDark from '/logo-dark.png'
 
@@ -81,10 +82,9 @@ const DARK = {
  * separador. Todos hacen OAuth por redirección, y esa navegación se le escapa
  * al WebView: iOS la abre en Safari y la sesión se queda allí.
  *
- * Apple no se pierde por eso: lo pinta AppleSignInButton, que pide la
- * autorización al sistema y canjea el token sin navegar a ningún sitio. Lo que
- * sí queda fuera en nativo es Google, que necesita su propio SDK nativo.
- * En la web se muestran los dos con normalidad.
+ * Ni Apple ni Google se pierden por eso: los pintan AppleSignInButton y
+ * GoogleSignInButton, que piden la autorización al SDK del sistema y canjean el
+ * token sin navegar a ningún sitio. En la web se muestran los de Clerk.
  */
 const SIGN_IN_APPEARANCE = {
   variables: {
@@ -129,6 +129,8 @@ function Acceso() {
       {isNative && (
         <>
           <AppleSignInButton />
+          <div style={{ height: 10 }} />
+          <GoogleSignInButton />
           <div
             style={{
               display: 'flex',

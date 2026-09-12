@@ -14,14 +14,32 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- Literal, no $(PRODUCT_NAME), que vale «App» y es el nombre que lee la
+	     hoja de consentimiento del sistema: sin esto, al entrar con Google salía
+	     «App quiere usar accounts.google.com para iniciar sesión». -->
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Osmin</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Sign in with Google. Aquí va el cliente de tipo iOS; el de tipo web se
+	     pasa a GoogleSignIn.initialize() desde src/lib/googleSignIn.ts, y es el
+	     que acaba en el `aud` del token y contra el que valida Clerk. No son
+	     intercambiables: cruzarlos es el fallo clásico de esta integración. -->
+	<key>GIDClientID</key>
+	<string>446757266637-npdt1eave21cgne9ei0ggtedah8q0610.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.446757266637-npdt1eave21cgne9ei0ggtedah8q0610</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSFaceIDUsageDescription</key>

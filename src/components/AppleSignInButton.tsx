@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSignIn, useSignUp } from '@clerk/clerk-react'
 import { AppleSignIn, isCanceled } from '../lib/appleSignIn'
+import { canjearToken, describirError } from '../lib/tokenSignIn'
 
 /**
  * «Continuar con Apple» sin salir de la app.
@@ -30,30 +31,18 @@ export default function AppleSignInButton() {
     try {
       const { identityToken: token, givenName, familyName } = await AppleSignIn.authorize()
 
-      // Se intenta SIEMPRE el alta primero, aunque la cuenta ya exista. Clerk
-      // contesta entonces `transferable`, y la transferencia reutiliza esa misma
-      // verificación para iniciar sesión. Lo que no se puede es reintentar con
-      // el token: Apple solo lo acepta una vez y el segundo canje falla.
-      const alta = await signUp.create({
-        strategy: 'oauth_token_apple',
-        token,
+      const sesion = await canjearToken({
+        signIn, signUp, strategy: 'oauth_token_apple', token,
         // Apple solo manda el nombre la primera vez que se autoriza la app.
         firstName: givenName || undefined,
         lastName: familyName || undefined,
       })
 
-      const sesion =
-        alta.verifications.externalAccount.status === 'transferable'
-          ? (await signIn.create({ transfer: true })).createdSessionId
-          : alta.createdSessionId
-
-      if (!sesion) throw new Error(`Clerk no creó sesión (alta: ${alta.status})`)
-
       await setActive({ session: sesion })
     } catch (err) {
       if (!isCanceled(err)) {
         console.error('[Osmin] falló el acceso con Apple:', err)
-        setError(describe(err))
+        setError(describirError(err))
       }
     } finally {
       setBusy(false)
@@ -99,19 +88,4 @@ export default function AppleSignInButton() {
       )}
     </div>
   )
-}
-
-/**
- * Para saber si ha fallado Apple o Clerk. Sin esto el fallo es siempre el mismo
- * mensaje y no hay forma de distinguir «el sistema no ha dado token» de
- * «Clerk no reconoce esta app», que se arreglan en sitios muy distintos.
- */
-const describe = (err: unknown): string => {
-  const clerk = (err as { errors?: { code?: string; message?: string }[] })?.errors
-  if (Array.isArray(clerk) && clerk.length) {
-    return `clerk/${clerk[0].code ?? '?'}: ${clerk[0].message ?? ''}`
-  }
-  const native = err as { code?: string; message?: string }
-  if (native?.code) return `apple/${native.code}: ${native.message ?? ''}`
-  return String((err as Error)?.message ?? err)
 }
